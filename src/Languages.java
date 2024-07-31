@@ -9,22 +9,21 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 
 public class Languages {
-	private Map<String, Language> languages;
+	private Map<String, Language> tasks;
+
+	public Languages overwrite(Languages other) {
+		if (other != null)
+			for (String lang : other.getTasks().keySet())
+				if (!tasks.containsKey(lang))
+					tasks.put(lang, other.getTasks().get(lang));
+		return this;
+	}
 
 	public static class Language {
 		private String name;
 		private ArrayList<String> extensions;
 		private String highlighter;
 		private String command;
-
-		// Getters and setters
-		public String getName() {
-			return name;
-		}
-
-		public void setName(String name) {
-			this.name = name;
-		}
 
 		public ArrayList<String> getExtensions() {
 			return extensions;
@@ -51,18 +50,18 @@ public class Languages {
 		}
 	}
 
-	public Map<String, Language> getLanguages() {
-		return languages;
+	public Map<String, Language> getTasks() {
+		return tasks;
 	}
 
-	public void setLanguages(Map<String, Language> languages) {
-		this.languages = languages;
+	public void setTasks(Map<String, Language> languages) {
+		this.tasks = languages;
 	}
 
-	public static Languages readYamlConfig(File yamlFile) throws IOException {
+	public static Languages readYamlConfig(File yamlFile, Languages previous) throws IOException {
 		Yaml yaml = new Yaml(new Constructor(Languages.class));
 		try (InputStream inputStream = Files.newInputStream(yamlFile.toPath())) {
-			return yaml.load(inputStream);
+			return ((Languages) yaml.load(inputStream)).overwrite(previous);
 		}
 	}
 }

@@ -1,0 +1,5 @@
+tasks:
+  view:
+    extensions: [html]
+    highlighter: html
+    command: cmd /C start "{path}{file}{ext}"

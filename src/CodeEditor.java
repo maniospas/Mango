@@ -10,9 +10,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.html.HTMLDocument;
-import javax.swing.text.html.HTMLEditorKit;
-import javax.swing.text.html.StyleSheet;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -29,10 +26,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class CodeEditor extends JFrame {
 	private static final long serialVersionUID = 1431536465167923296L;
@@ -42,9 +38,17 @@ public class CodeEditor extends JFrame {
 	private JTabbedPane consoleTabbedPane;
 	private Map<File, RSyntaxTextArea> openFilesMap = new HashMap<>();
 	private Map<File, Boolean> dirtyMap = new HashMap<>();
+	private Map<Component, Process> consoleProcessMap = new HashMap<>();
 	private File projectDir;
 	private File currentFile;
-	private Languages languageConfig;
+	private Languages languageConfig, baseLanguageConfig;
+	private ArrayList<String> log = new ArrayList<String>();
+	
+	public void log(String message) {
+		log.add(message);
+		if(log.size()>10)
+			log.remove(0);
+	}
 
 	public CodeEditor() {
 		setTitle("Jace - Just another code editor");
@@ -185,7 +189,6 @@ public class CodeEditor extends JFrame {
 		pasteButton.setToolTipText("Paste (Ctrl+V)");
 		pasteButton.addActionListener(e -> paste());
 		editToolBar.add(pasteButton);
-		
 
 		JButton undoButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/undo.png"))
 				.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
@@ -197,9 +200,6 @@ public class CodeEditor extends JFrame {
 		redoButton.setToolTipText("Redo (Ctrl+Y)");
 		redoButton.addActionListener(e -> redo());
 		editToolBar.add(redoButton);
-		
-		
-		
 
 		JPanel toolBarPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 		toolBarPanel.add(mainToolBar);
@@ -217,7 +217,6 @@ public class CodeEditor extends JFrame {
 			System.exit(0);
 		openProject(newProjectDir);
 		consoleTabbedPane.setVisible(false);
-
 	}
 
 	private File selectProjectDirectory() {
@@ -326,20 +325,17 @@ public class CodeEditor extends JFrame {
 
 		JMenuItem closeAllItem = new JMenuItem("Close all");
 		closeAllItem.addActionListener(ev -> closeAllTabs());
-
 		JMenuItem closeToRightItem = new JMenuItem("Close all to the right");
 		closeToRightItem.addActionListener(ev -> closeTabsToRight(tabIndex));
-
 		JMenuItem closeToLeftItem = new JMenuItem("Close all to the left");
 		closeToLeftItem.addActionListener(ev -> closeTabsToLeft(tabIndex));
-
 		JMenuItem closeOthersItem = new JMenuItem("Close all others");
 		closeOthersItem.addActionListener(ev -> closeOtherTabs(tabIndex));
 
 		contextMenu.add(closeAllItem);
-		contextMenu.add(closeToRightItem);
-		contextMenu.add(closeToLeftItem);
 		contextMenu.add(closeOthersItem);
+		contextMenu.add(closeToLeftItem);
+		contextMenu.add(closeToRightItem);
 
 		contextMenu.show(e.getComponent(), e.getX(), e.getY());
 	}
@@ -496,7 +492,7 @@ public class CodeEditor extends JFrame {
 
 	private void updateSyntaxHighlighter(File file, RSyntaxTextArea textArea) {
 		if (languageConfig != null)
-			for (Languages.Language language : languageConfig.getLanguages().values()) {
+			for (Languages.Language language : languageConfig.getTasks().values()) {
 				for (String extension : language.getExtensions()) {
 					if (file.getName().endsWith("." + extension)) {
 						textArea.setSyntaxEditingStyle("text/" + language.getHighlighter());
@@ -613,39 +609,69 @@ public class CodeEditor extends JFrame {
 
 	private void runCommand() {
 		// Read the YAML configuration
-		File yamlFile = new File(projectDir + "/.languages.yaml");
+		File yamlFile = new File(projectDir + "/.jace.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = Languages.readYamlConfig(yamlFile);
+				languageConfig = Languages.readYamlConfig(yamlFile, baseLanguageConfig);
 			} catch (Exception e) {
 				JOptionPane.showMessageDialog(this,
 						"Failed to parse the project-specific configuration: " + e.toString(), "Error",
 						JOptionPane.ERROR_MESSAGE);
 			}
 		}
-
-		Languages.Language runLanguage = null;
+		HashMap<String, Languages.Language> alternatives = new HashMap<String, Languages.Language>();
 		if (this.currentFile != null)
-			for (Languages.Language language : languageConfig.getLanguages().values()) {
-				for (String extension : language.getExtensions()) {
+			for (String lang : languageConfig.getTasks().keySet()) {
+				for (String extension : languageConfig.getTasks().get(lang).getExtensions()) {
 					if (this.currentFile.getName().endsWith("." + extension)) {
-						runLanguage = language;
-						break;
+						alternatives.put(lang, languageConfig.getTasks().get(lang));
 					}
 				}
 			}
 
-		try {
-			if (runLanguage == null) {
-				JOptionPane.showMessageDialog(this,
-						"Please add a configuration with which to run the current file's extension.", "Nothing to run",
-						JOptionPane.ERROR_MESSAGE);
-				return;
+		if (alternatives.size()==0) {
+			JOptionPane.showMessageDialog(this,
+					"There is no declared task for the current file's extension.", "Nothing to run",
+					JOptionPane.ERROR_MESSAGE);
+			return;
+		}
+		Languages.Language runLanguage = null;
+		if (alternatives.size() == 1) {
+			runLanguage = new ArrayList<Languages.Language>(alternatives.values()).get(0);
+		} 
+		else {
+			String[] options = new String[alternatives.size() + 1];
+			HashMap<Integer, Languages.Language> optionToTask = new HashMap<Integer, Languages.Language>();
+			int i = 0;
+			for (String lang : alternatives.keySet()) {
+				options[i] = lang;
+				optionToTask.put(i, alternatives.get(lang));
+				i += 1;
 			}
+			options[alternatives.size()] = "Cancel";
+
+			String message = "Multiple tasks are available for the current file's extension. Please select one:";
+			int choice = JOptionPane.showOptionDialog(this,
+					message,
+					"Select task",
+					JOptionPane.DEFAULT_OPTION,
+					JOptionPane.QUESTION_MESSAGE,
+					null,
+					options,
+					options[0]);
+
+			if (choice==JOptionPane.CLOSED_OPTION || choice == alternatives.size()) 
+				return;
+			else
+				runLanguage = optionToTask.get(choice);
+		}
+		assert runLanguage!=null; // this should be impossible right now
+		try {
 			promptSaveAllFiles();
 		} catch (RuntimeException e) {
 			return;
 		}
+		
 		JTextPane consoleOutput = new JTextPane();
 		consoleOutput.setContentType("text/html");
 		consoleOutput.setEditable(false);
@@ -697,18 +723,20 @@ public class CodeEditor extends JFrame {
 				.replace("{ext}", filepath.contains(".") ? filepath.substring(filepath.lastIndexOf(".")) : "");
 		ProcessBuilder processBuilder = new ProcessBuilder(command.split(" "));
 		processBuilder.directory(projectDir);
-		appendAnsiText(consoleOutput, command + "\n\n");
+		ANSI.appendAnsiText(consoleOutput, command + "\n\n");
 		try {
 			Process process = processBuilder.start();
 			stopButton.addActionListener(e -> stopProcess(process));
 			closeButton.addActionListener(e -> closeConsoleTab(process, scrollPane, consoleOutput));
+
+			consoleProcessMap.put(scrollPane, process); // Add process to the map
 
 			new Thread(() -> {
 				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
 					String line;
 					while ((line = reader.readLine()) != null) {
 						String l = line;
-						SwingUtilities.invokeLater(() -> appendAnsiText(consoleOutput, l + "\n"));
+						SwingUtilities.invokeLater(() -> ANSI.appendAnsiText(consoleOutput, l + "\n"));
 					}
 				} catch (IOException ex) {
 					ex.printStackTrace();
@@ -721,115 +749,31 @@ public class CodeEditor extends JFrame {
 					String line;
 					while ((line = reader.readLine()) != null) {
 						String l = line;
-						SwingUtilities.invokeLater(() -> appendAnsiText(consoleOutput, l + "\n"));
+						SwingUtilities.invokeLater(() -> ANSI.appendAnsiText(consoleOutput, l + "\n"));
 					}
 				} catch (IOException ex) {
 					ex.printStackTrace();
 				}
 			}).start();
+
+			// Add mouse listener to tab for context menu
+			tabComponent.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					if (SwingUtilities.isRightMouseButton(e)) {
+						showConsoleContextMenu(e, consoleTabbedPane.indexOfTabComponent(tabComponent));
+					}
+				}
+			});
+
 		} catch (Exception e) {
-			appendAnsiText(consoleOutput, e.toString());
-		}
-	}
-
-	private static void appendAnsiText(JTextPane textPane, String text) {
-		String html = ansiToHtml(text);
-		try {
-			HTMLEditorKit kit = (HTMLEditorKit) textPane.getEditorKit();
-			StyleSheet styleSheet = kit.getStyleSheet();
-			styleSheet.addRule("body { font-family: monospaced; color: white;}");
-			kit.insertHTML((HTMLDocument) textPane.getDocument(), textPane.getDocument().getLength(), html, 0, 0, null);
-		} catch (BadLocationException | IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	private static String ansiToHtml(String ansiText) {
-		StringBuilder html = new StringBuilder();
-		html.append("<pre style='display: inline; margin: 0;'>");
-
-		String ansiRegex = "\\u001B\\[(\\d+;)?(\\d+)?m";
-		Pattern pattern = Pattern.compile(ansiRegex);
-		Matcher matcher = pattern.matcher(ansiText);
-		int lastEnd = 0;
-
-		while (matcher.find()) {
-			String prefix = ansiText.substring(lastEnd, matcher.start());
-			prefix = convertUnicodeToHtmlEntities(prefix);
-			html.append(prefix.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
-
-			String code = matcher.group();
-			String color = convertAnsiCodeToHtmlColor(code);
-			if (color != null) {
-				html.append("<span style='color: ").append(color).append(";'>");
-			} else if (code.equals("\u001B[0m")) {
-				html.append("</span>");
-			}
-
-			lastEnd = matcher.end();
-		}
-
-		html.append(convertUnicodeToHtmlEntities(ansiText.substring(lastEnd).replaceAll("&", "&amp;"))
-				.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
-		html.append("</pre>");
-		return html.toString();
-	}
-
-	private static String convertUnicodeToHtmlEntities(String text) {
-		StringBuilder result = new StringBuilder();
-		for (char c : text.toCharArray()) {
-			if (c > 127) { // Non-ASCII characters
-				result.append("&#").append((int) c).append(";");
-			} else {
-				result.append(c);
-			}
-		}
-		return result.toString();
-	}
-
-	private static String convertAnsiCodeToHtmlColor(String code) {
-		switch (code) {
-		case "\u001B[30m":
-			return "#3B4252;"; // Black
-		case "\u001B[31m":
-			return "#BF616A;"; // Red
-		case "\u001B[32m":
-			return "#A3BE8C;"; // Green
-		case "\u001B[33m":
-			return "#EBCB8B;"; // Yellow
-		case "\u001B[34m":
-			return "#81A1C1;"; // Blue
-		case "\u001B[35m":
-			return "#B48EAD;"; // Magenta
-		case "\u001B[36m":
-			return "#88C0F0;"; // Cyan
-		case "\u001B[37m":
-			return "#FFFFFF;"; // White
-		case "\u001B[90m":
-			return "#4C566A;"; // Bright Black
-		case "\u001B[91m":
-			return "#BF616A;"; // Bright Red
-		case "\u001B[92m":
-			return "#A3BE8C;"; // Bright Green
-		case "\u001B[93m":
-			return "#EBCB8B;"; // Bright Yellow
-		case "\u001B[94m":
-			return "#81A1C1;"; // Bright Blue
-		case "\u001B[95m":
-			return "#B48EAD;"; // Bright Magenta
-		case "\u001B[96m":
-			return "#8FBCFF;"; // Bright Cyan
-		case "\u001B[97m":
-			return "#ECEFF4;"; // Bright White
-		case "\u001B[0m":
-			return null; // Reset
-		default:
-			return null;
+			ANSI.appendAnsiText(consoleOutput, e.toString());
 		}
 	}
 
 	private void stopProcess(Process process) {
-		if (process != null) {
+		if (process != null && process.isAlive()) {
+			log("Console: process cancelled by user");
 			process.destroy();
 		}
 	}
@@ -840,32 +784,201 @@ public class CodeEditor extends JFrame {
 			option = JOptionPane.showConfirmDialog(this, "Closing a running process stops it. Proceed?", "Close",
 					JOptionPane.YES_NO_OPTION);
 		if (option == JOptionPane.YES_OPTION) {
-			if (process.isAlive())
-				stopProcess(process);
+			stopProcess(process);
 			consoleTabbedPane.remove(tabComponent);
+			consoleProcessMap.remove(tabComponent); // Remove the process from the map
 			consoleOutput.setText(""); // Clearing the console output text
 		}
-		if (consoleTabbedPane.getTabCount() == 0) {
+		/*if (consoleTabbedPane.getTabCount() == 0) {
 			JSplitPane splitPane = (JSplitPane) getContentPane().getComponent(0);
 			splitPane.setDividerLocation(1.0); // Hide console pane
+		}*/
+	}
+
+	// Method to show context menu for console tabs
+	private void showConsoleContextMenu(MouseEvent e, int tabIndex) {
+		JPopupMenu contextMenu = new JPopupMenu();
+
+		JMenuItem closeAllItem = new JMenuItem("Close all");
+		closeAllItem.addActionListener(ev -> closeAllConsoleTabs());
+		JMenuItem closeToRightItem = new JMenuItem("Close all to the right");
+		closeToRightItem.addActionListener(ev -> closeConsoleTabsToRight(tabIndex));
+		JMenuItem closeToLeftItem = new JMenuItem("Close all to the left");
+		closeToLeftItem.addActionListener(ev -> closeConsoleTabsToLeft(tabIndex));
+		JMenuItem closeOthersItem = new JMenuItem("Close all others");
+		closeOthersItem.addActionListener(ev -> closeOtherConsoleTabs(tabIndex));
+		JMenuItem closeSameFirstLineItem = new JMenuItem("Close all with this command");
+		closeSameFirstLineItem.addActionListener(ev -> closeConsoleTabsWithSameFirstLine(tabIndex, true));
+		JMenuItem closeOthersSameFirstLineItem = new JMenuItem("Close all others with this command");
+		closeOthersSameFirstLineItem.addActionListener(ev -> closeConsoleTabsWithSameFirstLine(tabIndex, false));
+
+		contextMenu.add(closeAllItem);
+		contextMenu.add(closeOthersItem);
+		contextMenu.add(closeToLeftItem);
+		contextMenu.add(closeToRightItem);
+		contextMenu.add(closeSameFirstLineItem);
+		contextMenu.add(closeOthersSameFirstLineItem);
+
+		contextMenu.show(e.getComponent(), e.getX(), e.getY());
+	}
+
+	private void closeAllConsoleTabs() {
+		boolean hasRunningProcesses = consoleProcessMap.values().stream().anyMatch(Process::isAlive);
+		if (hasRunningProcesses) {
+			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop all and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			if (option != JOptionPane.YES_OPTION) {
+				return;
+			}
+		}
+		consoleProcessMap.forEach((component, process) -> {
+			stopProcess(process);
+		});
+		consoleTabbedPane.removeAll();
+		consoleProcessMap.clear();
+	}
+
+	private void closeConsoleTabsToRight(int tabIndex) {
+		boolean hasRunningProcesses = false;
+		for (int i = consoleTabbedPane.getTabCount() - 1; i > tabIndex; i--) {
+			Process process = consoleProcessMap.get(consoleTabbedPane.getComponentAt(i));
+			if (process != null && process.isAlive()) {
+				hasRunningProcesses = true;
+				break;
+			}
+		}
+		if (hasRunningProcesses) {
+			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			if (option != JOptionPane.YES_OPTION) {
+				return;
+			}
+		}
+		for (int i = consoleTabbedPane.getTabCount() - 1; i > tabIndex; i--) {
+			Component component = consoleTabbedPane.getComponentAt(i);
+			Process process = consoleProcessMap.get(component);
+			stopProcess(process);
+			consoleTabbedPane.remove(i);
+			consoleProcessMap.remove(component);
+		}
+	}
+
+	private void closeConsoleTabsToLeft(int tabIndex) {
+		boolean hasRunningProcesses = false;
+		for (int i = tabIndex - 1; i >= 0; i--) {
+			Process process = consoleProcessMap.get(consoleTabbedPane.getComponentAt(i));
+			if (process != null && process.isAlive()) {
+				hasRunningProcesses = true;
+				break;
+			}
+		}
+		if (hasRunningProcesses) {
+			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			if (option != JOptionPane.YES_OPTION) {
+				return;
+			}
+		}
+		for (int i = tabIndex - 1; i >= 0; i--) {
+			Component component = consoleTabbedPane.getComponentAt(i);
+			Process process = consoleProcessMap.get(component);
+			stopProcess(process);
+			consoleTabbedPane.remove(i);
+			consoleProcessMap.remove(component);
+		}
+	}
+
+	private void closeOtherConsoleTabs(int tabIndex) {
+		boolean hasRunningProcesses = false;
+		for (int i = consoleTabbedPane.getTabCount() - 1; i >= 0; i--) {
+			if (i != tabIndex) {
+				Process process = consoleProcessMap.get(consoleTabbedPane.getComponentAt(i));
+				if (process != null && process.isAlive()) {
+					hasRunningProcesses = true;
+					break;
+				}
+			}
+		}
+		if (hasRunningProcesses) {
+			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			if (option != JOptionPane.YES_OPTION) {
+				return;
+			}
+		}
+		for (int i = consoleTabbedPane.getTabCount() - 1; i >= 0; i--) {
+			if (i != tabIndex) {
+				Component component = consoleTabbedPane.getComponentAt(i);
+				Process process = consoleProcessMap.get(component);
+				stopProcess(process);
+				consoleTabbedPane.remove(i);
+				consoleProcessMap.remove(component);
+			}
+		}
+	}
+
+	private void closeConsoleTabsWithSameFirstLine(int tabIndex, boolean includeCurrent) {
+		Component selectedComponent = consoleTabbedPane.getComponentAt(tabIndex);
+		JTextPane selectedTextPane = (JTextPane) ((JScrollPane) selectedComponent).getViewport().getView();
+		String firstLine = getFirstLine(selectedTextPane);
+
+		boolean hasRunningProcesses = false;
+		for (int i = consoleTabbedPane.getTabCount() - 1; i >= 0; i--) {
+			if (i != tabIndex || includeCurrent) {
+				Component component = consoleTabbedPane.getComponentAt(i);
+				JTextPane textPane = (JTextPane) ((JScrollPane) component).getViewport().getView();
+				String line = getFirstLine(textPane);
+
+				if (line.equals(firstLine)) {
+					Process process = consoleProcessMap.get(component);
+					if (process != null && process.isAlive()) {
+						hasRunningProcesses = true;
+						break;
+					}
+				}
+			}
+		}
+		if (hasRunningProcesses) {
+			int option = JOptionPane.showConfirmDialog(this, "There are running processes with the same first line. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			if (option != JOptionPane.YES_OPTION) {
+				return;
+			}
+		}
+		for (int i = consoleTabbedPane.getTabCount() - 1; i >= 0; i--) {
+			if (i != tabIndex || includeCurrent) {
+				Component component = consoleTabbedPane.getComponentAt(i);
+				JTextPane textPane = (JTextPane) ((JScrollPane) component).getViewport().getView();
+				String line = getFirstLine(textPane);
+
+				if (line.equals(firstLine)) {
+					Process process = consoleProcessMap.get(component);
+					stopProcess(process);
+					consoleTabbedPane.remove(i);
+					consoleProcessMap.remove(component);
+				}
+			}
+		}
+	}
+
+
+	private String getFirstLine(JTextPane textPane) {
+		try {
+			return textPane.getDocument().getText(0, textPane.getDocument().getDefaultRootElement().getElement(0).getEndOffset()).trim();
+		} catch (BadLocationException e) {
+			e.printStackTrace();
+			return "";
 		}
 	}
 
 	private void restartApplication() {
 		try {
 			promptSaveAllFiles();
-
-			// Close all files and clear data structures
 			closeAllFiles();
-
-			// Prompt user to select a new project directory
 			File newProjectDir = selectProjectDirectory();
-
-			// If a new project is selected, open it
 			if (newProjectDir != null) {
 				openProject(newProjectDir);
 			}
+			else {
+				log("Open project: cancelled by user");
+			}
 		} catch (RuntimeException e) {
+			log("Open project: cancelled by user");
 			// Operation was cancelled by the user, do nothing
 		}
 	}
@@ -879,25 +992,31 @@ public class CodeEditor extends JFrame {
 		setTitle("Jace - " + dir.getName());
 
 		// Read the YAML configuration
-		File yamlFile = new File(".languages.yaml");
+		File yamlFile = new File(".jace.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = Languages.readYamlConfig(yamlFile);
+				languageConfig = Languages.readYamlConfig(yamlFile, null);
+				baseLanguageConfig = languageConfig;
 			} catch (Exception e) {
-				JOptionPane.showMessageDialog(this, "Failed to parse the project's configuration: " + e.toString(),
+				JOptionPane.showMessageDialog(this, 
+						"Failed to parse global configuration: " + e.toString(),
 						"Error", JOptionPane.ERROR_MESSAGE);
+				log("Open project: failed to parse global configuration");
 			}
 		}
 		// Read the project-specific YAML configuration
-		yamlFile = new File(projectDir, ".languages.yaml");
+		yamlFile = new File(projectDir, ".jace.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = Languages.readYamlConfig(yamlFile);
+				languageConfig = Languages.readYamlConfig(yamlFile, baseLanguageConfig);
 			} catch (Exception e) {
-				JOptionPane.showMessageDialog(this, "Failed to parse the project's configuration: " + e.toString(),
+				JOptionPane.showMessageDialog(this, 
+						"Failed to parse the project's configuration: " + e.toString(),
 						"Error", JOptionPane.ERROR_MESSAGE);
+				log(projectDir.getAbsolutePath()+": failed to parse project configuration");
 			}
 		}
+		log(projectDir.getAbsolutePath()+": opened");
 	}
 
 	private void addFilesToNode(DefaultMutableTreeNode node, File file) {
@@ -943,13 +1062,16 @@ public class CodeEditor extends JFrame {
 							selectedNode = (DefaultMutableTreeNode) selectedNode.getParent();
 						selectedNode.add(newNode);
 						treeModel.reload(selectedNode);
+						log(file.toString()+": created");
 						openFile(newFile); // Open the newly created file
 					} else {
 						JOptionPane.showMessageDialog(this, "File already exists.", "Error", JOptionPane.ERROR_MESSAGE);
+						log(file.toString()+": already exists");
 					}
 				} catch (IOException ex) {
 					JOptionPane.showMessageDialog(this, "File creation failed: " + e.toString(), "Error",
 							JOptionPane.ERROR_MESSAGE);
+					log(file.toString()+": failed to create");
 				}
 			}
 		});
@@ -961,6 +1083,7 @@ public class CodeEditor extends JFrame {
 			if (folderName != null && !folderName.trim().isEmpty()) {
 				File newFolder = new File(file.isDirectory() ? file.getAbsolutePath() : file.getParent(), folderName);
 				if (newFolder.mkdir()) {
+					log(file.toString()+": created");
 					DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) projectTree.getSelectionPath()
 							.getLastPathComponent();
 					if (!file.isDirectory())
@@ -971,8 +1094,11 @@ public class CodeEditor extends JFrame {
 				} else {
 					JOptionPane.showMessageDialog(this, "Directory creation failed.", "Error",
 							JOptionPane.ERROR_MESSAGE);
+					log(file.toString()+": failed to create");
 				}
 			}
+			else
+				log(file.toString()+": cancelled by user");
 		});
 		contextMenu.add(createFolderItem);
 
@@ -1004,10 +1130,15 @@ public class CodeEditor extends JFrame {
 							.getLastPathComponent();
 					selectedNode.removeFromParent();
 					treeModel.reload();
+					log(file.toString()+": deleted");
 				} catch (IOException ex) {
-					ex.printStackTrace();
+					log(file.toString()+": failed to delete");
+					JOptionPane.showMessageDialog(this, "Deletion failed: "+e.toString(), "Error",
+							JOptionPane.ERROR_MESSAGE);
 				}
 			}
+			else
+				log(file.toString()+": cancelled by user");
 		});
 		contextMenu.add(deleteItem);
 
