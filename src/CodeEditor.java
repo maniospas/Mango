@@ -1,7 +1,5 @@
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
-import org.fife.ui.rsyntaxtextarea.SyntaxScheme;
-import org.fife.ui.rsyntaxtextarea.Token;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
 import javax.swing.*;
@@ -12,9 +10,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
@@ -31,21 +26,15 @@ import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
-
 public class CodeEditor extends JFrame {
-
 	private static final long serialVersionUID = 1431536465167923296L;
 	private JTree projectTree;
 	private DefaultTreeModel treeModel;
@@ -55,7 +44,7 @@ public class CodeEditor extends JFrame {
 	private Map<File, Boolean> dirtyMap = new HashMap<>();
 	private File projectDir;
 	private File currentFile;
-	private LanguageConfig languageConfig;
+	private Languages languageConfig;
 
 	public CodeEditor() {
 		setTitle("Jace - Just another code editor");
@@ -165,7 +154,7 @@ public class CodeEditor extends JFrame {
 				new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/search.png")).getImage()
 						.getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
 		searchButton.setToolTipText("Search (Ctrl+F)");
-		searchButton.addActionListener(e -> showSearchDialog());
+		searchButton.addActionListener(e -> Search.getInstance().showSearchDialog(this));
 		searchReplaceToolBar.add(searchButton);
 
 		// Replace Button
@@ -196,6 +185,21 @@ public class CodeEditor extends JFrame {
 		pasteButton.setToolTipText("Paste (Ctrl+V)");
 		pasteButton.addActionListener(e -> paste());
 		editToolBar.add(pasteButton);
+		
+
+		JButton undoButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/undo.png"))
+				.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
+		undoButton.setToolTipText("Undo (Ctrl+Z)");
+		undoButton.addActionListener(e -> undo());
+		editToolBar.add(undoButton);
+		JButton redoButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/redo.png"))
+				.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
+		redoButton.setToolTipText("Redo (Ctrl+Y)");
+		redoButton.addActionListener(e -> redo());
+		editToolBar.add(redoButton);
+		
+		
+		
 
 		JPanel toolBarPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 		toolBarPanel.add(mainToolBar);
@@ -344,8 +348,8 @@ public class CodeEditor extends JFrame {
 	private void closeAllTabs() {
 		boolean hasUnsavedChanges = dirtyMap.values().stream().anyMatch(dirty -> dirty);
 		if (hasUnsavedChanges) {
-			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?",
-					"Save Files", JOptionPane.YES_NO_CANCEL_OPTION);
+			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?", "Save Files",
+					JOptionPane.YES_NO_CANCEL_OPTION);
 			if (option == JOptionPane.YES_OPTION)
 				saveAllFiles();
 			else
@@ -370,8 +374,8 @@ public class CodeEditor extends JFrame {
 			}
 		}
 		if (hasUnsavedChanges) {
-			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?",
-					"Save Files", JOptionPane.YES_NO_CANCEL_OPTION);
+			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?", "Save Files",
+					JOptionPane.YES_NO_CANCEL_OPTION);
 			if (option == JOptionPane.YES_OPTION)
 				saveAllFiles();
 			else
@@ -406,8 +410,8 @@ public class CodeEditor extends JFrame {
 			}
 		}
 		if (hasUnsavedChanges) {
-			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?",
-					"Save Files", JOptionPane.YES_NO_CANCEL_OPTION);
+			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?", "Save Files",
+					JOptionPane.YES_NO_CANCEL_OPTION);
 			if (option == JOptionPane.YES_OPTION)
 				saveAllFiles();
 			else
@@ -430,21 +434,21 @@ public class CodeEditor extends JFrame {
 
 	private void closeOtherTabs(int tabIndex) {
 		boolean hasUnsavedChanges = false;
-		for (int i = tabbedPane.getTabCount() - 1; i >= 0; i--) 
-			if(i!=tabIndex){
-			Component component = tabbedPane.getComponentAt(i);
-			if (component instanceof RTextScrollPane) {
-				RSyntaxTextArea textArea = (RSyntaxTextArea) ((RTextScrollPane) component).getViewport().getView();
-				File file = getFileForTextArea(textArea);
-				if (file != null && this.dirtyMap.get(file)) {
-					hasUnsavedChanges = true;
-					break;
+		for (int i = tabbedPane.getTabCount() - 1; i >= 0; i--)
+			if (i != tabIndex) {
+				Component component = tabbedPane.getComponentAt(i);
+				if (component instanceof RTextScrollPane) {
+					RSyntaxTextArea textArea = (RSyntaxTextArea) ((RTextScrollPane) component).getViewport().getView();
+					File file = getFileForTextArea(textArea);
+					if (file != null && this.dirtyMap.get(file)) {
+						hasUnsavedChanges = true;
+						break;
+					}
 				}
 			}
-		}
 		if (hasUnsavedChanges) {
-			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?",
-					"Save Files", JOptionPane.YES_NO_CANCEL_OPTION);
+			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?", "Save Files",
+					JOptionPane.YES_NO_CANCEL_OPTION);
 			if (option == JOptionPane.YES_OPTION)
 				saveAllFiles();
 			else
@@ -476,12 +480,12 @@ public class CodeEditor extends JFrame {
 			tabbedPane.remove(i);
 		}
 	}
-	
+
 	private HashMap<RSyntaxTextArea, File> areaToFile;
 
 	private void updateInverseTextAreaMap() {
 		areaToFile = new HashMap<RSyntaxTextArea, File>();
-		for (Map.Entry<File, RSyntaxTextArea> entry : openFilesMap.entrySet()) 
+		for (Map.Entry<File, RSyntaxTextArea> entry : openFilesMap.entrySet())
 			areaToFile.put(entry.getValue(), entry.getKey());
 	}
 
@@ -492,7 +496,7 @@ public class CodeEditor extends JFrame {
 
 	private void updateSyntaxHighlighter(File file, RSyntaxTextArea textArea) {
 		if (languageConfig != null)
-			for (LanguageConfig.Language language : languageConfig.getLanguages().values()) {
+			for (Languages.Language language : languageConfig.getLanguages().values()) {
 				for (String extension : language.getExtensions()) {
 					if (file.getName().endsWith("." + extension)) {
 						textArea.setSyntaxEditingStyle("text/" + language.getHighlighter());
@@ -572,8 +576,8 @@ public class CodeEditor extends JFrame {
 	private void promptSaveAllFiles() {
 		boolean hasUnsavedChanges = dirtyMap.values().stream().anyMatch(dirty -> dirty);
 		if (hasUnsavedChanges) {
-			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?",
-					"Save Files", JOptionPane.YES_NO_CANCEL_OPTION);
+			int option = JOptionPane.showConfirmDialog(this, "Save changes to the files being closed?", "Save Files",
+					JOptionPane.YES_NO_CANCEL_OPTION);
 			if (option == JOptionPane.YES_OPTION) {
 				saveAllFiles();
 			} else if (option == JOptionPane.CANCEL_OPTION) {
@@ -612,11 +616,7 @@ public class CodeEditor extends JFrame {
 		File yamlFile = new File(projectDir + "/.languages.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = readYamlConfig(yamlFile);
-				// for(String lang : languageConfig.getLanguages().keySet()) {
-				// System.out.println(lang+"
-				// "+languageConfig.getLanguages().get(lang).getExtensions());
-				// }
+				languageConfig = Languages.readYamlConfig(yamlFile);
 			} catch (Exception e) {
 				JOptionPane.showMessageDialog(this,
 						"Failed to parse the project-specific configuration: " + e.toString(), "Error",
@@ -624,9 +624,9 @@ public class CodeEditor extends JFrame {
 			}
 		}
 
-		LanguageConfig.Language runLanguage = null;
+		Languages.Language runLanguage = null;
 		if (this.currentFile != null)
-			for (LanguageConfig.Language language : languageConfig.getLanguages().values()) {
+			for (Languages.Language language : languageConfig.getLanguages().values()) {
 				for (String extension : language.getExtensions()) {
 					if (this.currentFile.getName().endsWith("." + extension)) {
 						runLanguage = language;
@@ -670,21 +670,26 @@ public class CodeEditor extends JFrame {
 
 		tabComponent.add(tabLabel, BorderLayout.WEST);
 		tabComponent.add(buttonPanel, BorderLayout.EAST);
-		
-		if(!consoleTabbedPane.isVisible()) {
+
+		if (!consoleTabbedPane.isVisible()) {
 			JSplitPane splitPane = (JSplitPane) getContentPane().getComponent(0);
 			consoleTabbedPane.setVisible(true);
-			splitPane.setDividerLocation(400); 
+			splitPane.setDividerLocation(400);
 		}
 		consoleTabbedPane.addTab("Run Output", scrollPane);
 		consoleTabbedPane.setTabComponentAt(consoleTabbedPane.getTabCount() - 1, tabComponent);
 		consoleTabbedPane.setSelectedComponent(scrollPane);
 		String filepath = currentFile.getAbsolutePath().replace("\\", "/");
 		String command = runLanguage.getCommand()
-				.replace("{path}", filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
+				.replace("{path}",
+						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
 				.replace("{path/}", filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
-				.replace("{path.}", filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", ".") : ".")
-				.replace("{path\\}", filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", "\\") : ".")
+				.replace("{path.}",
+						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", ".")
+								: ".")
+				.replace("{path\\}",
+						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", "\\")
+								: ".")
 				.replace("{file}",
 						filepath.contains(".")
 								? filepath.substring(filepath.lastIndexOf("/") + 1, filepath.lastIndexOf("."))
@@ -699,112 +704,129 @@ public class CodeEditor extends JFrame {
 			closeButton.addActionListener(e -> closeConsoleTab(process, scrollPane, consoleOutput));
 
 			new Thread(() -> {
-			    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-			        String line;
-			        while ((line = reader.readLine()) != null) {
-			        	String l = line;
-			            SwingUtilities.invokeLater(() -> appendAnsiText(consoleOutput, l + "\n"));
-			        }
-			    } catch (IOException ex) {
-			        ex.printStackTrace();
-			    }
-			    stopButton.setVisible(false);
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+					String line;
+					while ((line = reader.readLine()) != null) {
+						String l = line;
+						SwingUtilities.invokeLater(() -> appendAnsiText(consoleOutput, l + "\n"));
+					}
+				} catch (IOException ex) {
+					ex.printStackTrace();
+				}
+				stopButton.setVisible(false);
 			}).start();
 
 			new Thread(() -> {
-			    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-			        String line;
-			        while ((line = reader.readLine()) != null) {
-			        	String l = line;
-			            SwingUtilities.invokeLater(() -> appendAnsiText(consoleOutput, l + "\n"));
-			        }
-			    } catch (IOException ex) {
-			        ex.printStackTrace();
-			    }
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+					String line;
+					while ((line = reader.readLine()) != null) {
+						String l = line;
+						SwingUtilities.invokeLater(() -> appendAnsiText(consoleOutput, l + "\n"));
+					}
+				} catch (IOException ex) {
+					ex.printStackTrace();
+				}
 			}).start();
 		} catch (Exception e) {
 			appendAnsiText(consoleOutput, e.toString());
 		}
 	}
-	
+
 	private static void appendAnsiText(JTextPane textPane, String text) {
-        String html = ansiToHtml(text);
-        try {
-            HTMLEditorKit kit = (HTMLEditorKit) textPane.getEditorKit();
-            StyleSheet styleSheet = kit.getStyleSheet();
-            styleSheet.addRule("body { font-family: monospaced; color: white;}");
-            kit.insertHTML((HTMLDocument) textPane.getDocument(), textPane.getDocument().getLength(), html, 0, 0, null);
-        } catch (BadLocationException | IOException e) {
-            e.printStackTrace();
-        }
-    }
+		String html = ansiToHtml(text);
+		try {
+			HTMLEditorKit kit = (HTMLEditorKit) textPane.getEditorKit();
+			StyleSheet styleSheet = kit.getStyleSheet();
+			styleSheet.addRule("body { font-family: monospaced; color: white;}");
+			kit.insertHTML((HTMLDocument) textPane.getDocument(), textPane.getDocument().getLength(), html, 0, 0, null);
+		} catch (BadLocationException | IOException e) {
+			e.printStackTrace();
+		}
+	}
 
-    private static String ansiToHtml(String ansiText) {
-        StringBuilder html = new StringBuilder();
-        html.append("<pre style='display: inline; margin: 0;'>");
+	private static String ansiToHtml(String ansiText) {
+		StringBuilder html = new StringBuilder();
+		html.append("<pre style='display: inline; margin: 0;'>");
 
-        String ansiRegex = "\\u001B\\[(\\d+;)?(\\d+)?m";
-        Pattern pattern = Pattern.compile(ansiRegex);
-        Matcher matcher = pattern.matcher(ansiText);
-        int lastEnd = 0;
+		String ansiRegex = "\\u001B\\[(\\d+;)?(\\d+)?m";
+		Pattern pattern = Pattern.compile(ansiRegex);
+		Matcher matcher = pattern.matcher(ansiText);
+		int lastEnd = 0;
 
-        while (matcher.find()) {
-            String prefix = ansiText.substring(lastEnd, matcher.start());
-            prefix = convertUnicodeToHtmlEntities(prefix);
-            html.append(prefix.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
+		while (matcher.find()) {
+			String prefix = ansiText.substring(lastEnd, matcher.start());
+			prefix = convertUnicodeToHtmlEntities(prefix);
+			html.append(prefix.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
 
-            String code = matcher.group();
-            String color = convertAnsiCodeToHtmlColor(code);
-            if (color != null) {
-                html.append("<span style='color: ").append(color).append(";'>");
-            } else if (code.equals("\u001B[0m")) {
-                html.append("</span>");
-            }
+			String code = matcher.group();
+			String color = convertAnsiCodeToHtmlColor(code);
+			if (color != null) {
+				html.append("<span style='color: ").append(color).append(";'>");
+			} else if (code.equals("\u001B[0m")) {
+				html.append("</span>");
+			}
 
-            lastEnd = matcher.end();
-        }
+			lastEnd = matcher.end();
+		}
 
-        html.append(convertUnicodeToHtmlEntities(ansiText.substring(lastEnd).replaceAll("&", "&amp;"))
-        		.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
-        html.append("</pre>");
-        return html.toString();
-    }
-    
-    private static String convertUnicodeToHtmlEntities(String text) {
-        StringBuilder result = new StringBuilder();
-        for (char c : text.toCharArray()) {
-            if (c > 127) {  // Non-ASCII characters
-                result.append("&#").append((int) c).append(";");
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
+		html.append(convertUnicodeToHtmlEntities(ansiText.substring(lastEnd).replaceAll("&", "&amp;"))
+				.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
+		html.append("</pre>");
+		return html.toString();
+	}
 
+	private static String convertUnicodeToHtmlEntities(String text) {
+		StringBuilder result = new StringBuilder();
+		for (char c : text.toCharArray()) {
+			if (c > 127) { // Non-ASCII characters
+				result.append("&#").append((int) c).append(";");
+			} else {
+				result.append(c);
+			}
+		}
+		return result.toString();
+	}
 
-    private static String convertAnsiCodeToHtmlColor(String code) {
-        switch (code) {
-            case "\u001B[30m": return "#3B4252;"; // Black
-            case "\u001B[31m": return "#BF616A;"; // Red
-            case "\u001B[32m": return "#A3BE8C;"; // Green
-            case "\u001B[33m": return "#EBCB8B;"; // Yellow
-            case "\u001B[34m": return "#81A1C1;"; // Blue
-            case "\u001B[35m": return "#B48EAD;"; // Magenta
-            case "\u001B[36m": return "#88C0F0;"; // Cyan
-            case "\u001B[37m": return "#FFFFFF;"; // White
-            case "\u001B[90m": return "#4C566A;"; // Bright Black
-            case "\u001B[91m": return "#BF616A;"; // Bright Red
-            case "\u001B[92m": return "#A3BE8C;"; // Bright Green
-            case "\u001B[93m": return "#EBCB8B;"; // Bright Yellow
-            case "\u001B[94m": return "#81A1C1;"; // Bright Blue
-            case "\u001B[95m": return "#B48EAD;"; // Bright Magenta
-            case "\u001B[96m": return "#8FBCFF;"; // Bright Cyan
-            case "\u001B[97m": return "#ECEFF4;"; // Bright White
-            case "\u001B[0m": return null; // Reset
-            default: return null;
-        }
-    }
+	private static String convertAnsiCodeToHtmlColor(String code) {
+		switch (code) {
+		case "\u001B[30m":
+			return "#3B4252;"; // Black
+		case "\u001B[31m":
+			return "#BF616A;"; // Red
+		case "\u001B[32m":
+			return "#A3BE8C;"; // Green
+		case "\u001B[33m":
+			return "#EBCB8B;"; // Yellow
+		case "\u001B[34m":
+			return "#81A1C1;"; // Blue
+		case "\u001B[35m":
+			return "#B48EAD;"; // Magenta
+		case "\u001B[36m":
+			return "#88C0F0;"; // Cyan
+		case "\u001B[37m":
+			return "#FFFFFF;"; // White
+		case "\u001B[90m":
+			return "#4C566A;"; // Bright Black
+		case "\u001B[91m":
+			return "#BF616A;"; // Bright Red
+		case "\u001B[92m":
+			return "#A3BE8C;"; // Bright Green
+		case "\u001B[93m":
+			return "#EBCB8B;"; // Bright Yellow
+		case "\u001B[94m":
+			return "#81A1C1;"; // Bright Blue
+		case "\u001B[95m":
+			return "#B48EAD;"; // Bright Magenta
+		case "\u001B[96m":
+			return "#8FBCFF;"; // Bright Cyan
+		case "\u001B[97m":
+			return "#ECEFF4;"; // Bright White
+		case "\u001B[0m":
+			return null; // Reset
+		default:
+			return null;
+		}
+	}
 
 	private void stopProcess(Process process) {
 		if (process != null) {
@@ -860,11 +882,7 @@ public class CodeEditor extends JFrame {
 		File yamlFile = new File(".languages.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = readYamlConfig(yamlFile);
-				// for(String lang : languageConfig.getLanguages().keySet()) {
-				// System.out.println(lang+"
-				// "+languageConfig.getLanguages().get(lang).getExtensions());
-				// }
+				languageConfig = Languages.readYamlConfig(yamlFile);
 			} catch (Exception e) {
 				JOptionPane.showMessageDialog(this, "Failed to parse the project's configuration: " + e.toString(),
 						"Error", JOptionPane.ERROR_MESSAGE);
@@ -874,11 +892,7 @@ public class CodeEditor extends JFrame {
 		yamlFile = new File(projectDir, ".languages.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = readYamlConfig(yamlFile);
-				// for(String lang : languageConfig.getLanguages().keySet()) {
-				// System.out.println(lang+"
-				// "+languageConfig.getLanguages().get(lang).getExtensions());
-				// }
+				languageConfig = Languages.readYamlConfig(yamlFile);
 			} catch (Exception e) {
 				JOptionPane.showMessageDialog(this, "Failed to parse the project's configuration: " + e.toString(),
 						"Error", JOptionPane.ERROR_MESSAGE);
@@ -981,10 +995,10 @@ public class CodeEditor extends JFrame {
 					if (file.isDirectory()) {
 						deleteDirectory(file);
 					} else {
+						Files.delete(file.toPath());
 						tabbedPane.remove(openFilesMap.get(file).getParent().getParent());
 						openFilesMap.remove(file);
 						dirtyMap.remove(file);
-						Files.delete(file.toPath());
 					}
 					DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) projectTree.getSelectionPath()
 							.getLastPathComponent();
@@ -1026,7 +1040,7 @@ public class CodeEditor extends JFrame {
 		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK), "search");
 		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_R, KeyEvent.CTRL_DOWN_MASK), "run");
 		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, KeyEvent.CTRL_DOWN_MASK), "replace");
-
+		CodeEditor thisObj = this;
 		actionMap.put("closeFile", new AbstractAction() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -1057,6 +1071,18 @@ public class CodeEditor extends JFrame {
 				cut();
 			}
 		});
+		actionMap.put("uiundo", new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				undo();
+			}
+		});
+		actionMap.put("uiredo", new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				redo();
+			}
+		});
 		actionMap.put("run", new AbstractAction() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -1066,7 +1092,7 @@ public class CodeEditor extends JFrame {
 		actionMap.put("search", new AbstractAction() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				showSearchDialog();
+				Search.getInstance().showSearchDialog(thisObj);
 			}
 		});
 		actionMap.put("replace", new AbstractAction() {
@@ -1092,6 +1118,20 @@ public class CodeEditor extends JFrame {
 	private void cut() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
 			openFilesMap.get(currentFile).cut();
+		}
+	}
+
+	private void undo() {
+		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
+			if (openFilesMap.get(currentFile).canUndo())
+				openFilesMap.get(currentFile).undoLastAction();
+		}
+	}
+
+	private void redo() {
+		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
+			if (openFilesMap.get(currentFile).canRedo())
+				openFilesMap.get(currentFile).redoLastAction();
 		}
 	}
 
@@ -1128,236 +1168,12 @@ public class CodeEditor extends JFrame {
 		return null;
 	}
 
-	private String previousSearchText = "";
-
-	private void showSearchDialog() {
-		JDialog searchDialog = new JDialog(this, "Search", false);
-		searchDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-		KeyStroke escapeKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, false);
-        Action escapeAction = new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-            	searchDialog.dispose();
-            }
-        };
-        searchDialog.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(escapeKeyStroke, "ESCAPE");
-        searchDialog.getRootPane().getActionMap().put("ESCAPE", escapeAction);
-		searchDialog.setLayout(new BorderLayout());
-		searchDialog.setSize(350, 180);
-		searchDialog.setLocationRelativeTo(this);
-
-		JPanel inputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-		JTextField searchField = new JTextField(30);
-		searchField.setToolTipText("Write text & press Enter to search");
-
-		String selectedText = getSelectedText();
-		if (selectedText != null && !selectedText.isEmpty()) {
-			searchField.setText(selectedText);
-			previousSearchText = selectedText;
-		} else {
-			searchField.setText(previousSearchText);
-		}
-		searchField.selectAll();
-
-		JCheckBox caseSensitiveCheckBox = new JCheckBox("Case Sensitive");
-		JCheckBox wrapAroundCheckBox = new JCheckBox("Wrap Around", true);
-		searchField.addActionListener(e -> searchNext(searchField.getText(), caseSensitiveCheckBox.isSelected(),
-				wrapAroundCheckBox.isSelected()));
-
-		inputPanel.add(searchField);
-
-		JPanel checkBoxPanel = new JPanel();
-		checkBoxPanel.setLayout(new BoxLayout(checkBoxPanel, BoxLayout.Y_AXIS));
-		checkBoxPanel.add(caseSensitiveCheckBox);
-		checkBoxPanel.add(wrapAroundCheckBox);
-
-		JPanel buttonPanel = new JPanel(new BorderLayout());
-		JLabel occurrenceLabel = new JLabel("Type above  ", SwingConstants.RIGHT);
-		occurrenceLabel.setEnabled(false);
-		buttonPanel.add(occurrenceLabel, BorderLayout.NORTH);
-
-		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-
-		JButton firstButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/first.png"))
-				.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
-		firstButton.setToolTipText("First occurrence");
-		firstButton.setSize(16, 16);
-		firstButton.addActionListener(e -> searchFirst(searchField.getText(), caseSensitiveCheckBox.isSelected(),
-				wrapAroundCheckBox.isSelected()));
-
-		JButton nextButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/next.png"))
-				.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
-		nextButton.setToolTipText("Next");
-		nextButton.setSize(16, 16);
-		nextButton.addActionListener(e -> searchNext(searchField.getText(), caseSensitiveCheckBox.isSelected(),
-				wrapAroundCheckBox.isSelected()));
-
-		JButton previousButton = new JButton(
-				new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/previous.png")).getImage()
-						.getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
-		previousButton.setToolTipText("Previous");
-		previousButton.setSize(16, 16);
-		previousButton.addActionListener(e -> searchPrevious(searchField.getText(), caseSensitiveCheckBox.isSelected(),
-				wrapAroundCheckBox.isSelected()));
-
-		buttons.add(firstButton);
-		buttons.add(previousButton);
-		buttons.add(nextButton);
-
-		buttonPanel.add(buttons, BorderLayout.SOUTH);
-
-		searchField.getDocument().addDocumentListener(new SimpleDocumentListener() {
-			@Override
-			public void documentChanged() {
-				updateOccurrences(buttons, occurrenceLabel, searchField.getText(), caseSensitiveCheckBox.isSelected());
-			}
-		});
-		caseSensitiveCheckBox.addActionListener(e -> updateOccurrences(buttons, occurrenceLabel, searchField.getText(),
-				caseSensitiveCheckBox.isSelected()));
-
-		buttons.setVisible(false);
-
-		searchDialog.add(inputPanel, BorderLayout.NORTH);
-		searchDialog.add(checkBoxPanel, BorderLayout.WEST);
-		searchDialog.add(buttonPanel, BorderLayout.EAST);
-
-		updateOccurrences(buttons, occurrenceLabel, searchField.getText(), caseSensitiveCheckBox.isSelected());
-
-		searchDialog.pack();
-		searchDialog.setResizable(false);
-		searchDialog.setVisible(true);
-	}
-
-	private void updateOccurrences(JPanel buttons, JLabel occurrenceLabel, String searchText, boolean caseSensitive) {
-		if (searchText.length() == 0) {
-			occurrenceLabel.setText("Type above  ");
-			buttons.setVisible(false);
-			previousSearchText = searchText;
-			return;
-		}
-		int occurrences = countOccurrences(searchText, caseSensitive);
-		if (occurrences > 100) {
-			occurrenceLabel.setText("100+ occurrences  ");
-			buttons.setVisible(true);
-			previousSearchText = searchText;
-		} else if (occurrences > 1) {
-			occurrenceLabel.setText(occurrences + " occurrences  ");
-			buttons.setVisible(true);
-			previousSearchText = searchText;
-		} else if (occurrences == 1) {
-			occurrenceLabel.setText(occurrences + " occurrence  ");
-			buttons.setVisible(true);
-			previousSearchText = searchText;
-		} else {
-			occurrenceLabel.setText("Nothing found  ");
-			buttons.setVisible(false);
-			previousSearchText = searchText;
-		}
-	}
-
-	private String getSelectedText() {
+	public String getSelectedText() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
 			RSyntaxTextArea textArea = openFilesMap.get(currentFile);
 			return textArea.getSelectedText();
 		}
 		return null;
-	}
-
-	private int countOccurrences(String searchText, boolean caseSensitive) {
-		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			RSyntaxTextArea textArea = openFilesMap.get(currentFile);
-			String content = caseSensitive ? textArea.getText() : textArea.getText().toLowerCase();
-			String search = caseSensitive ? searchText : searchText.toLowerCase();
-			int occurrences = 0;
-			int index = 0;
-
-			while (index >= 0) {
-				index = content.indexOf(search, index);
-				if (index >= 0) {
-					occurrences++;
-					index += search.length();
-					if (occurrences > 100) {
-						return occurrences;
-					}
-				}
-			}
-			return occurrences;
-		}
-		return 0;
-	}
-
-	private void searchFirst(String text, boolean caseSensitive, boolean wrapAround) {
-		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			RSyntaxTextArea textArea = openFilesMap.get(currentFile);
-			String content = caseSensitive ? textArea.getText() : textArea.getText().toLowerCase();
-			String searchText = caseSensitive ? text : text.toLowerCase();
-
-			int searchStart = content.indexOf(searchText, 0);
-
-			if (searchStart >= 0) {
-				textArea.setCaretPosition(searchStart);
-				textArea.moveCaretPosition(searchStart + text.length());
-			} else {
-				JOptionPane.showMessageDialog(this, "No first occurrence found.", "Search",
-						JOptionPane.INFORMATION_MESSAGE);
-			}
-		}
-	}
-
-	private void searchNext(String text, boolean caseSensitive, boolean wrapAround) {
-		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			RSyntaxTextArea textArea = openFilesMap.get(currentFile);
-			String content = caseSensitive ? textArea.getText() : textArea.getText().toLowerCase();
-			String searchText = caseSensitive ? text : text.toLowerCase();
-			int caretPosition = textArea.getCaretPosition();
-
-			int searchStart = content.indexOf(searchText, caretPosition);
-
-			if (searchStart >= 0) {
-				textArea.setCaretPosition(searchStart);
-				textArea.moveCaretPosition(searchStart + text.length());
-			} else if (wrapAround) {
-				searchStart = content.indexOf(searchText);
-				if (searchStart >= 0) {
-					textArea.setCaretPosition(searchStart);
-					textArea.moveCaretPosition(searchStart + text.length());
-				} else {
-					JOptionPane.showMessageDialog(this, "No occurrences found.", "Search",
-							JOptionPane.INFORMATION_MESSAGE);
-				}
-			} else {
-				JOptionPane.showMessageDialog(this, "No next occurrence found.", "Search",
-						JOptionPane.INFORMATION_MESSAGE);
-			}
-		}
-	}
-
-	private void searchPrevious(String text, boolean caseSensitive, boolean wrapAround) {
-		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			RSyntaxTextArea textArea = openFilesMap.get(currentFile);
-			String content = caseSensitive ? textArea.getText() : textArea.getText().toLowerCase();
-			String searchText = caseSensitive ? text : text.toLowerCase();
-			int caretPosition = textArea.getCaretPosition();
-
-			int searchStart = content.lastIndexOf(searchText, caretPosition - text.length() - 1);
-
-			if (searchStart >= 0) {
-				textArea.setCaretPosition(searchStart);
-				textArea.moveCaretPosition(searchStart + text.length());
-			} else if (wrapAround) {
-				searchStart = content.lastIndexOf(searchText);
-				if (searchStart >= 0) {
-					textArea.setCaretPosition(searchStart);
-					textArea.moveCaretPosition(searchStart + text.length());
-				} else {
-					JOptionPane.showMessageDialog(this, "No occurrences found.", "Search",
-							JOptionPane.INFORMATION_MESSAGE);
-				}
-			} else {
-				JOptionPane.showMessageDialog(this, "No previous occurrence found.", "Search",
-						JOptionPane.INFORMATION_MESSAGE);
-			}
-		}
 	}
 
 	private void showReplaceDialog() {
@@ -1375,22 +1191,6 @@ public class CodeEditor extends JFrame {
 			CodeEditor editor = new CodeEditor();
 			editor.setVisible(true);
 		});
-	}
-
-	abstract class SimpleDocumentListener implements DocumentListener {
-		public void insertUpdate(DocumentEvent e) {
-			documentChanged();
-		}
-
-		public void removeUpdate(DocumentEvent e) {
-			documentChanged();
-		}
-
-		public void changedUpdate(DocumentEvent e) {
-			documentChanged();
-		}
-
-		public abstract void documentChanged();
 	}
 
 	public class CustomTreeCellRenderer extends DefaultTreeCellRenderer {
@@ -1419,62 +1219,7 @@ public class CodeEditor extends JFrame {
 		}
 	}
 
-	public static class LanguageConfig {
-		private Map<String, Language> languages;
-
-		public static class Language {
-			private String name;
-			private ArrayList<String> extensions;
-			private String highlighter;
-			private String command;
-
-			// Getters and setters
-			public String getName() {
-				return name;
-			}
-
-			public void setName(String name) {
-				this.name = name;
-			}
-
-			public ArrayList<String> getExtensions() {
-				return extensions;
-			}
-
-			public void setExtensions(ArrayList<String> extensions) {
-				this.extensions = extensions;
-			}
-
-			public String getHighlighter() {
-				return highlighter;
-			}
-
-			public String getCommand() {
-				return command;
-			}
-
-			public void setHighlighter(String highlighter) {
-				this.highlighter = highlighter;
-			}
-
-			public void setCommand(String command) {
-				this.command = command;
-			}
-		}
-
-		public Map<String, Language> getLanguages() {
-			return languages;
-		}
-
-		public void setLanguages(Map<String, Language> languages) {
-			this.languages = languages;
-		}
-	}
-
-	private LanguageConfig readYamlConfig(File yamlFile) throws IOException {
-		Yaml yaml = new Yaml(new Constructor(LanguageConfig.class));
-		try (InputStream inputStream = Files.newInputStream(yamlFile.toPath())) {
-			return yaml.load(inputStream);
-		}
+	public RSyntaxTextArea getCurrentTextArea() {
+		return openFilesMap.getOrDefault(currentFile, null);
 	}
 }
