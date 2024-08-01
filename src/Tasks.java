@@ -5,13 +5,15 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Map;
 
+import javax.swing.JTabbedPane;
+
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 
-public class Languages {
-	private Map<String, Language> tasks;
+public class Tasks {
+	private Map<String, Task> tasks;
 
-	public Languages overwrite(Languages other) {
+	public Tasks overwrite(Tasks other) {
 		if (other != null)
 			for (String lang : other.getTasks().keySet())
 				if (!tasks.containsKey(lang))
@@ -19,11 +21,10 @@ public class Languages {
 		return this;
 	}
 
-	public static class Language {
-		private String name;
-		private ArrayList<String> extensions;
-		private String highlighter;
-		private String command;
+	public static class Task {
+		private ArrayList<String> extensions = new ArrayList<String>();
+		private String highlighter = "txt";
+		private String command = "";
 
 		public ArrayList<String> getExtensions() {
 			return extensions;
@@ -50,18 +51,18 @@ public class Languages {
 		}
 	}
 
-	public Map<String, Language> getTasks() {
+	public Map<String, Task> getTasks() {
 		return tasks;
 	}
 
-	public void setTasks(Map<String, Language> languages) {
-		this.tasks = languages;
+	public void setTasks(Map<String, Task> tasks) {
+		this.tasks = tasks;
 	}
 
-	public static Languages readYamlConfig(File yamlFile, Languages previous) throws IOException {
-		Yaml yaml = new Yaml(new Constructor(Languages.class));
+	public static Tasks readYamlConfig(File yamlFile, Tasks previous) throws IOException {
+		Yaml yaml = new Yaml(new Constructor(Tasks.class));
 		try (InputStream inputStream = Files.newInputStream(yamlFile.toPath())) {
-			return ((Languages) yaml.load(inputStream)).overwrite(previous);
+			return ((Tasks) yaml.load(inputStream)).overwrite(previous);
 		}
 	}
 }

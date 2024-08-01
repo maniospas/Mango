@@ -47,35 +47,38 @@ public class CodeEditor extends JFrame {
 	private Map<File, RSyntaxTextArea> openFilesMap = new HashMap<>();
 	private Map<File, Boolean> dirtyMap = new HashMap<>();
 	private Map<Component, Process> consoleProcessMap = new HashMap<>();
-	private File projectDir;
+	public File projectDir;
 	private File currentFile;
-	private Languages languageConfig, baseLanguageConfig;
+	private Tasks languageConfig, baseLanguageConfig;
 	private ArrayList<String> log = new ArrayList<String>();
-	
+
 	public void log(String message) {
 		log.add(message);
-		if(log.size()>10)
+		if (log.size() > 10)
 			log.remove(0);
 	}
 
 	public CodeEditor() {
-		setTitle("Jace - Just another code editor");
+		setTitle("Mango - Just another code editor");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setSize(800, 600);
 		setLocationRelativeTo(null);
 		setExtendedState(JFrame.MAXIMIZED_BOTH);
 		
+		setIconImage(
+				new ImageIcon(CodeEditor.class.getResource("/icons/mango.png"))
+				.getImage());
+
 		addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                try {
-                	promptSaveAllFiles();
-                    System.exit(0);
-                }
-                catch(RuntimeException ex) {
-                }
-            }
-        });
+			@Override
+			public void windowClosing(WindowEvent e) {
+				try {
+					promptSaveAllFiles();
+					System.exit(0);
+				} catch (RuntimeException ex) {
+				}
+			}
+		});
 
 		JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 		splitPane.setDividerLocation(400);
@@ -114,7 +117,7 @@ public class CodeEditor extends JFrame {
 						DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path.getLastPathComponent();
 						if (selectedNode != null) {
 							File selectedFile = (File) selectedNode.getUserObject();
-							if(selectedFile.isDirectory())
+							if (selectedFile.isDirectory())
 								addFilesToNode(selectedNode, selectedFile);
 							else
 								openFile(selectedFile);
@@ -127,9 +130,10 @@ public class CodeEditor extends JFrame {
 			@Override
 			public void treeExpanded(TreeExpansionEvent event) {
 				DefaultMutableTreeNode node = (DefaultMutableTreeNode) event.getPath().getLastPathComponent();
-				//System.out.println(node.getUserObject());
+				// System.out.println(node.getUserObject());
 				File file = (File) new File(node.getUserObject().toString());
-				if (file.isDirectory() && (node.getChildCount() == 1 && node.getChildAt(0).toString().equals("Loading..."))) {
+				if (file.isDirectory()
+						&& (node.getChildCount() == 1 && node.getChildAt(0).toString().equals("Loading..."))) {
 					addFilesToNode(node, file);
 				}
 			}
@@ -139,17 +143,17 @@ public class CodeEditor extends JFrame {
 				// No action needed
 			}
 		});
-        addWindowFocusListener(new WindowFocusListener() {
-            @Override
-            public void windowGainedFocus(WindowEvent e) {
-                refreshContent(projectTree);
-            }
+		addWindowFocusListener(new WindowFocusListener() {
+			@Override
+			public void windowGainedFocus(WindowEvent e) {
+				refreshContent(projectTree);
+			}
 
-            @Override
-            public void windowLostFocus(WindowEvent e) {
-                // Do nothing when window loses focus
-            }
-        });
+			@Override
+			public void windowLostFocus(WindowEvent e) {
+				// Do nothing when window loses focus
+			}
+		});
 		JScrollPane treeScrollPane = new JScrollPane(projectTree);
 		upperSplitPane.setLeftComponent(treeScrollPane);
 
@@ -180,14 +184,21 @@ public class CodeEditor extends JFrame {
 		runButton.addActionListener(e -> runCommand());
 		mainToolBar.add(runButton);
 
+		CodeEditor thisObj = this;
+		JButton taskButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/settings.png"))
+				.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
+		taskButton.setToolTipText("Edit tasks");
+		taskButton.addActionListener(e -> TasksEditor.createTasks(thisObj, languageConfig));
+		mainToolBar.add(taskButton);
+
+		// Search and Replace Toolbar
+		JToolBar searchReplaceToolBar = new JToolBar();
+
 		JButton saveButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/save.png"))
 				.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
 		saveButton.setToolTipText("Save current file (Ctrl+S)");
 		saveButton.addActionListener(e -> saveCurrentFile());
-		mainToolBar.add(saveButton);
-
-		// Search and Replace Toolbar
-		JToolBar searchReplaceToolBar = new JToolBar();
+		searchReplaceToolBar.add(saveButton);
 
 		// Search Button
 		JButton searchButton = new JButton(
@@ -268,6 +279,10 @@ public class CodeEditor extends JFrame {
 	}
 
 	private void openFile(File file) {
+		if(file.getName().equals(".mango.yaml")) {
+			TasksEditor.createTasks(this, languageConfig);
+			return;
+		}
 		currentFile = file;
 		if (openFilesMap.containsKey(file)) {
 			tabbedPane.setSelectedComponent(openFilesMap.get(file).getParent().getParent());
@@ -528,10 +543,10 @@ public class CodeEditor extends JFrame {
 
 	private void updateSyntaxHighlighter(File file, RSyntaxTextArea textArea) {
 		if (languageConfig != null)
-			for (Languages.Language language : languageConfig.getTasks().values()) {
-				for (String extension : language.getExtensions()) {
+			for (Tasks.Task task : languageConfig.getTasks().values()) {
+				for (String extension : task.getExtensions()) {
 					if (file.getName().endsWith("." + extension)) {
-						textArea.setSyntaxEditingStyle("text/" + language.getHighlighter());
+						textArea.setSyntaxEditingStyle("text/" + task.getHighlighter());
 						return;
 					}
 				}
@@ -621,7 +636,7 @@ public class CodeEditor extends JFrame {
 	}
 
 	private void closeFile(File file) {
-		if (file != null) {
+		if (file != null && openFilesMap.get(file) != null) {
 			if (dirtyMap.getOrDefault(file, false)) {
 				int option = JOptionPane.showConfirmDialog(this,
 						"Do you want to save changes to " + file.getName() + "?", "Save File",
@@ -647,17 +662,17 @@ public class CodeEditor extends JFrame {
 
 	private void runCommand() {
 		// Read the YAML configuration
-		File yamlFile = new File(projectDir + "/.jace.yaml");
+		File yamlFile = new File(projectDir + "/.mango.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = Languages.readYamlConfig(yamlFile, baseLanguageConfig);
+				languageConfig = Tasks.readYamlConfig(yamlFile, baseLanguageConfig);
 			} catch (Exception e) {
 				JOptionPane.showMessageDialog(this,
 						"Failed to parse the project-specific configuration: " + e.toString(), "Error",
 						JOptionPane.ERROR_MESSAGE);
 			}
 		}
-		HashMap<String, Languages.Language> alternatives = new HashMap<String, Languages.Language>();
+		HashMap<String, Tasks.Task> alternatives = new HashMap<String, Tasks.Task>();
 		if (this.currentFile != null)
 			for (String lang : languageConfig.getTasks().keySet()) {
 				for (String extension : languageConfig.getTasks().get(lang).getExtensions()) {
@@ -667,19 +682,31 @@ public class CodeEditor extends JFrame {
 				}
 			}
 
-		if (alternatives.size()==0) {
-			JOptionPane.showMessageDialog(this,
-					"There is no declared task for the current file's extension.", "Nothing to run",
-					JOptionPane.ERROR_MESSAGE);
-			return;
+		if (alternatives.size() == 0) {
+		    Object[] options = {"Edit tasks", "OK"};
+		    int choice = JOptionPane.showOptionDialog(
+		            this,
+		            "There is no declared task for the current file's extension.",
+		            "Nothing to run",
+		            JOptionPane.DEFAULT_OPTION,
+		            JOptionPane.ERROR_MESSAGE,
+		            null,
+		            options,
+		            options[0]
+		    );
+
+		    if (choice == 0) {
+		    	TasksEditor.createTasks(this, languageConfig); 
+		    }
+		    return;
 		}
-		Languages.Language runLanguage = null;
+		
+		Tasks.Task runLanguage = null;
 		if (alternatives.size() == 1) {
-			runLanguage = new ArrayList<Languages.Language>(alternatives.values()).get(0);
-		} 
-		else {
+			runLanguage = new ArrayList<Tasks.Task>(alternatives.values()).get(0);
+		} else {
 			String[] options = new String[alternatives.size() + 1];
-			HashMap<Integer, Languages.Language> optionToTask = new HashMap<Integer, Languages.Language>();
+			HashMap<Integer, Tasks.Task> optionToTask = new HashMap<Integer, Tasks.Task>();
 			int i = 0;
 			for (String lang : alternatives.keySet()) {
 				options[i] = lang;
@@ -689,26 +716,21 @@ public class CodeEditor extends JFrame {
 			options[alternatives.size()] = "Cancel";
 
 			String message = "Multiple tasks are available for the current file's extension. Please select one:";
-			int choice = JOptionPane.showOptionDialog(this,
-					message,
-					"Select task",
-					JOptionPane.DEFAULT_OPTION,
-					JOptionPane.QUESTION_MESSAGE,
-					null,
-					options,
-					options[0]);
+			int choice = JOptionPane.showOptionDialog(this, message, "Select task", JOptionPane.DEFAULT_OPTION,
+					JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
 
-			if (choice==JOptionPane.CLOSED_OPTION || choice == alternatives.size()) 
+			if (choice == JOptionPane.CLOSED_OPTION || choice == alternatives.size())
 				return;
 			else
 				runLanguage = optionToTask.get(choice);
 		}
-		assert runLanguage!=null; // this should be impossible right now
+		assert runLanguage != null; // this should be impossible right now
 		try {
 			promptSaveAllFiles();
 		} catch (RuntimeException e) {
 			return;
-		}String filepath = currentFile.getAbsolutePath().replace("\\", "/");
+		}
+		String filepath = currentFile.getAbsolutePath().replace("\\", "/");
 		String command = runLanguage.getCommand()
 				.replace("{path}",
 						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
@@ -724,22 +746,21 @@ public class CodeEditor extends JFrame {
 								? filepath.substring(filepath.lastIndexOf("/") + 1, filepath.lastIndexOf("."))
 								: filepath.substring(filepath.lastIndexOf("/") + 1))
 				.replace("{ext}", filepath.contains(".") ? filepath.substring(filepath.lastIndexOf(".")) : "");
-		
 
 		Pattern pattern = Pattern.compile("\\{(.*?)\\}");
-        Matcher matcher = pattern.matcher(command);
+		Matcher matcher = pattern.matcher(command);
 
-        StringBuffer resultString = new StringBuffer();
-        while (matcher.find()) {
-            String placeholder = matcher.group(1);
-            String userInput = JOptionPane.showInputDialog(this, "Enter " + placeholder + ":");
-            if(userInput==null)
-            	return;
-            matcher.appendReplacement(resultString, userInput);
-        }
-        matcher.appendTail(resultString);
-        command = resultString.toString();
-		
+		StringBuffer resultString = new StringBuffer();
+		while (matcher.find()) {
+			String placeholder = matcher.group(1);
+			String userInput = JOptionPane.showInputDialog(this, "Enter " + placeholder + ":");
+			if (userInput == null)
+				return;
+			matcher.appendReplacement(resultString, userInput);
+		}
+		matcher.appendTail(resultString);
+		command = resultString.toString();
+
 		JTextPane consoleOutput = new JTextPane();
 		consoleOutput.setContentType("text/html");
 		consoleOutput.setEditable(false);
@@ -773,9 +794,7 @@ public class CodeEditor extends JFrame {
 		consoleTabbedPane.addTab("Run Output", scrollPane);
 		consoleTabbedPane.setTabComponentAt(consoleTabbedPane.getTabCount() - 1, tabComponent);
 		consoleTabbedPane.setSelectedComponent(scrollPane);
-		
-		
-		
+
 		ProcessBuilder processBuilder = new ProcessBuilder(command.split(" "));
 		processBuilder.directory(projectDir);
 		ANSI.appendAnsiText(consoleOutput, command + "\n\n");
@@ -844,10 +863,11 @@ public class CodeEditor extends JFrame {
 			consoleProcessMap.remove(tabComponent); // Remove the process from the map
 			consoleOutput.setText(""); // Clearing the console output text
 		}
-		/*if (consoleTabbedPane.getTabCount() == 0) {
-			JSplitPane splitPane = (JSplitPane) getContentPane().getComponent(0);
-			splitPane.setDividerLocation(1.0); // Hide console pane
-		}*/
+		/*
+		 * if (consoleTabbedPane.getTabCount() == 0) { JSplitPane splitPane =
+		 * (JSplitPane) getContentPane().getComponent(0);
+		 * splitPane.setDividerLocation(1.0); // Hide console pane }
+		 */
 	}
 
 	// Method to show context menu for console tabs
@@ -880,7 +900,9 @@ public class CodeEditor extends JFrame {
 	private void closeAllConsoleTabs() {
 		boolean hasRunningProcesses = consoleProcessMap.values().stream().anyMatch(Process::isAlive);
 		if (hasRunningProcesses) {
-			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop all and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			int option = JOptionPane.showConfirmDialog(this,
+					"There are running processes. Do you want to stop all and close?", "Confirm Close",
+					JOptionPane.YES_NO_OPTION);
 			if (option != JOptionPane.YES_OPTION) {
 				return;
 			}
@@ -902,7 +924,9 @@ public class CodeEditor extends JFrame {
 			}
 		}
 		if (hasRunningProcesses) {
-			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			int option = JOptionPane.showConfirmDialog(this,
+					"There are running processes. Do you want to stop them and close?", "Confirm Close",
+					JOptionPane.YES_NO_OPTION);
 			if (option != JOptionPane.YES_OPTION) {
 				return;
 			}
@@ -926,7 +950,9 @@ public class CodeEditor extends JFrame {
 			}
 		}
 		if (hasRunningProcesses) {
-			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			int option = JOptionPane.showConfirmDialog(this,
+					"There are running processes. Do you want to stop them and close?", "Confirm Close",
+					JOptionPane.YES_NO_OPTION);
 			if (option != JOptionPane.YES_OPTION) {
 				return;
 			}
@@ -952,7 +978,9 @@ public class CodeEditor extends JFrame {
 			}
 		}
 		if (hasRunningProcesses) {
-			int option = JOptionPane.showConfirmDialog(this, "There are running processes. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			int option = JOptionPane.showConfirmDialog(this,
+					"There are running processes. Do you want to stop them and close?", "Confirm Close",
+					JOptionPane.YES_NO_OPTION);
 			if (option != JOptionPane.YES_OPTION) {
 				return;
 			}
@@ -990,7 +1018,9 @@ public class CodeEditor extends JFrame {
 			}
 		}
 		if (hasRunningProcesses) {
-			int option = JOptionPane.showConfirmDialog(this, "There are running processes with the same first line. Do you want to stop them and close?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			int option = JOptionPane.showConfirmDialog(this,
+					"There are running processes with the same first line. Do you want to stop them and close?",
+					"Confirm Close", JOptionPane.YES_NO_OPTION);
 			if (option != JOptionPane.YES_OPTION) {
 				return;
 			}
@@ -1011,10 +1041,10 @@ public class CodeEditor extends JFrame {
 		}
 	}
 
-
 	private String getFirstLine(JTextPane textPane) {
 		try {
-			return textPane.getDocument().getText(0, textPane.getDocument().getDefaultRootElement().getElement(0).getEndOffset()).trim();
+			return textPane.getDocument()
+					.getText(0, textPane.getDocument().getDefaultRootElement().getElement(0).getEndOffset()).trim();
 		} catch (BadLocationException e) {
 			e.printStackTrace();
 			return "";
@@ -1028,8 +1058,7 @@ public class CodeEditor extends JFrame {
 			File newProjectDir = selectProjectDirectory();
 			if (newProjectDir != null) {
 				openProject(newProjectDir);
-			}
-			else {
+			} else {
 				log("Open project: cancelled by user");
 			}
 		} catch (RuntimeException e) {
@@ -1037,52 +1066,52 @@ public class CodeEditor extends JFrame {
 			// Operation was cancelled by the user, do nothing
 		}
 	}
-	
+
 	private void refreshContent(JTree tree) {
-	    // Save expanded paths as file paths
+		// Save expanded paths as file paths
 		ArrayList<String> expandedPaths = new ArrayList<String>();
-	    Enumeration<TreePath> enumeration = tree.getExpandedDescendants(new TreePath(treeModel.getRoot()));
-	    if (enumeration != null) {
-	        while (enumeration.hasMoreElements()) {
-	            TreePath treePath = enumeration.nextElement();
-	            DefaultMutableTreeNode node = (DefaultMutableTreeNode) treePath.getLastPathComponent();
-	            if(!(node.getUserObject() instanceof File))
-	            	continue;
-	            File file = (File) node.getUserObject();
-	            expandedPaths.add(file.getAbsolutePath());
-	        }
-	    }
+		Enumeration<TreePath> enumeration = tree.getExpandedDescendants(new TreePath(treeModel.getRoot()));
+		if (enumeration != null) {
+			while (enumeration.hasMoreElements()) {
+				TreePath treePath = enumeration.nextElement();
+				DefaultMutableTreeNode node = (DefaultMutableTreeNode) treePath.getLastPathComponent();
+				if (!(node.getUserObject() instanceof File))
+					continue;
+				File file = (File) node.getUserObject();
+				expandedPaths.add(file.getAbsolutePath());
+			}
+		}
 
-	    // Refresh the tree content
-	    DefaultMutableTreeNode root = new DefaultMutableTreeNode(projectDir.getName());
-	    treeModel.setRoot(root);
+		// Refresh the tree content
+		DefaultMutableTreeNode root = new DefaultMutableTreeNode(projectDir);
+		treeModel.setRoot(root);
 		root.add(new DefaultMutableTreeNode("Loading..."));
-	    addFilesToNode(root, projectDir);
-	    treeModel.reload();
-	    Collections.sort(expandedPaths); // needed to have the correct hierarchical order when loading
+		addFilesToNode(root, projectDir);
+		treeModel.reload();
+		Collections.sort(expandedPaths); // needed to have the correct hierarchical order when loading
 
-	    // Restore expanded paths
-	    for (String path : expandedPaths) {
-	        TreePath treePath = findTreePath(root, path);
-	        if (treePath != null) {
-	            tree.expandPath(treePath);
-	        }
-	    }
+		// Restore expanded paths
+		for (String path : expandedPaths) {
+			TreePath treePath = findTreePath(root, path);
+			if (treePath != null) {
+				tree.expandPath(treePath);
+			}
+		}
 	}
+
 	private TreePath findTreePath(DefaultMutableTreeNode root, String path) {
-	    Enumeration<TreeNode> enumeration = root.breadthFirstEnumeration();
-	    while (enumeration.hasMoreElements()) {
-	        DefaultMutableTreeNode node = (DefaultMutableTreeNode) enumeration.nextElement();
-	        if(!(node.getUserObject() instanceof File))
-	        	continue;
-	        File file = (File) node.getUserObject();
-	        if (file.getAbsolutePath().equals(path)) {
-	            return new TreePath(node.getPath());
-	        }
-	    }
-	    return null;
+		Enumeration<TreeNode> enumeration = root.breadthFirstEnumeration();
+		while (enumeration.hasMoreElements()) {
+			DefaultMutableTreeNode node = (DefaultMutableTreeNode) enumeration.nextElement();
+			if (!(node.getUserObject() instanceof File))
+				continue;
+			File file = (File) node.getUserObject();
+			if (file.getAbsolutePath().equals(path)) {
+				return new TreePath(node.getPath());
+			}
+		}
+		return null;
 	}
-
 
 	public void openProject(File dir) {
 		this.projectDir = dir;
@@ -1091,41 +1120,54 @@ public class CodeEditor extends JFrame {
 		root.add(new DefaultMutableTreeNode("Loading..."));
 		addFilesToNode(root, dir);
 		treeModel.reload();
-		setTitle("Jace - " + dir.getName());
+		setTitle("Mango - " + dir.getName());
 
 		// Read the YAML configuration
-		File yamlFile = new File(".jace.yaml");
+		File yamlFile = new File(".mango.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = Languages.readYamlConfig(yamlFile, null);
+				languageConfig = Tasks.readYamlConfig(yamlFile, null);
 				baseLanguageConfig = languageConfig;
 			} catch (Exception e) {
-				JOptionPane.showMessageDialog(this, 
-						"Failed to parse global configuration: " + e.toString(),
-						"Error", JOptionPane.ERROR_MESSAGE);
+				JOptionPane.showMessageDialog(this, "Failed to parse global configuration: " + e.toString(), "Error",
+						JOptionPane.ERROR_MESSAGE);
 				log("Open project: failed to parse global configuration");
 			}
 		}
 		// Read the project-specific YAML configuration
-		yamlFile = new File(projectDir, ".jace.yaml");
+		yamlFile = new File(projectDir, ".mango.yaml");
 		if (yamlFile.exists()) {
 			try {
-				languageConfig = Languages.readYamlConfig(yamlFile, baseLanguageConfig);
+				languageConfig = Tasks.readYamlConfig(yamlFile, baseLanguageConfig);
 			} catch (Exception e) {
-				JOptionPane.showMessageDialog(this, 
-						"Failed to parse the project's configuration: " + e.toString(),
+				JOptionPane.showMessageDialog(this, "Failed to parse the project's configuration: " + e.toString(),
 						"Error", JOptionPane.ERROR_MESSAGE);
-				log(projectDir.getAbsolutePath()+": failed to parse project configuration");
+				log(projectDir.getAbsolutePath() + ": failed to parse project configuration");
 			}
 		}
-		log(projectDir.getAbsolutePath()+": opened");
+		log(projectDir.getAbsolutePath() + ": opened");
+	}
+	
+	public void reloadTasks() {
+		File yamlFile = new File(".mango.yaml");
+		// Read the project-specific YAML configuration
+		yamlFile = new File(projectDir, ".mango.yaml");
+		if (yamlFile.exists()) {
+			try {
+				languageConfig = Tasks.readYamlConfig(yamlFile, baseLanguageConfig);
+			} catch (Exception e) {
+				JOptionPane.showMessageDialog(this, "Failed to parse the project's configuration: " + e.toString(),
+						"Error", JOptionPane.ERROR_MESSAGE);
+				log(projectDir.getAbsolutePath() + ": failed to parse project configuration");
+			}
+		}
 	}
 
 	private void addFilesToNode(DefaultMutableTreeNode node, File file) {
 		if (file.isDirectory() && node.getChildCount() == 1 && node.getChildAt(0).toString().equals("Loading...")) {
 			File[] files = file.listFiles();
 			node.removeAllChildren();
-			if (files != null  ) {
+			if (files != null) {
 				// Add directories first
 				for (File child : files) {
 					if (child.isDirectory() && !child.getName().startsWith(".") && !child.getName().startsWith("__")) {
@@ -1133,7 +1175,7 @@ public class CodeEditor extends JFrame {
 						childNode.setUserObject(child);
 						node.add(childNode);
 						childNode.add(new DefaultMutableTreeNode("Loading..."));
-						//addFilesToNode(childNode, child);
+						// addFilesToNode(childNode, child);
 					}
 				}
 				// Add files after directories
@@ -1145,68 +1187,73 @@ public class CodeEditor extends JFrame {
 					}
 				}
 			}
-			treeModel.reload(node); 
-			//SwingUtilities.invokeLater(() -> {treeModel.reload();});
-	        
+			treeModel.reload(node);
+			// SwingUtilities.invokeLater(() -> {treeModel.reload();});
+
 		}
 	}
 
 	private void showFileContextMenu(int x, int y, File file) {
 		JPopupMenu contextMenu = new JPopupMenu();
 
-		JMenuItem createFileItem = new JMenuItem("New file");
-		createFileItem.addActionListener(e -> {
-			String fileName = JOptionPane.showInputDialog(this, "File name:");
-			if (fileName != null && !fileName.trim().isEmpty()) {
-				File newFile = new File(file.isDirectory() ? file.getAbsolutePath() : file.getParent(), fileName);
-				try {
-					if (newFile.createNewFile()) {
+		if (file.isDirectory()) {
+			JMenuItem createFileItem = new JMenuItem("New file");
+			createFileItem.addActionListener(e -> {
+				String fileName = JOptionPane.showInputDialog(this, "File name:");
+				if (fileName != null && !fileName.trim().isEmpty()) {
+					File newFile = new File(file.isDirectory() ? file.getAbsolutePath() : file.getParent(), fileName);
+					try {
+						if (newFile.createNewFile()) {
+							DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) projectTree
+									.getSelectionPath().getLastPathComponent();
+							DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(newFile);
+							if (!file.isDirectory())
+								selectedNode = (DefaultMutableTreeNode) selectedNode.getParent();
+							selectedNode.add(newNode);
+							treeModel.reload(selectedNode);
+							log(file.toString() + ": created");
+							openFile(newFile); // Open the newly created file
+						} else {
+							JOptionPane.showMessageDialog(this, "File already exists.", "Error",
+									JOptionPane.ERROR_MESSAGE);
+							log(file.toString() + ": already exists");
+						}
+					} catch (IOException ex) {
+						JOptionPane.showMessageDialog(this, "File creation failed: " + e.toString(), "Error",
+								JOptionPane.ERROR_MESSAGE);
+						log(file.toString() + ": failed to create");
+					}
+				}
+			});
+			contextMenu.add(createFileItem);
+
+			JMenuItem createFolderItem = new JMenuItem("New directory");
+			createFolderItem.addActionListener(e -> {
+				String folderName = JOptionPane.showInputDialog(this, "Directory name:");
+				if (folderName != null && !folderName.trim().isEmpty()) {
+					File newFolder = new File(file.isDirectory() ? file.getAbsolutePath() : file.getParent(),
+							folderName);
+					if (newFolder.mkdir()) {
+						log(file.toString() + ": created");
 						DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) projectTree.getSelectionPath()
 								.getLastPathComponent();
-						DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(newFile);
 						if (!file.isDirectory())
 							selectedNode = (DefaultMutableTreeNode) selectedNode.getParent();
+						DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(newFolder);
 						selectedNode.add(newNode);
 						treeModel.reload(selectedNode);
-						log(file.toString()+": created");
-						openFile(newFile); // Open the newly created file
 					} else {
-						JOptionPane.showMessageDialog(this, "File already exists.", "Error", JOptionPane.ERROR_MESSAGE);
-						log(file.toString()+": already exists");
+						JOptionPane.showMessageDialog(this, "Directory creation failed.", "Error",
+								JOptionPane.ERROR_MESSAGE);
+						log(file.toString() + ": failed to create");
 					}
-				} catch (IOException ex) {
-					JOptionPane.showMessageDialog(this, "File creation failed: " + e.toString(), "Error",
-							JOptionPane.ERROR_MESSAGE);
-					log(file.toString()+": failed to create");
-				}
-			}
-		});
-		contextMenu.add(createFileItem);
+				} else
+					log(file.toString() + ": cancelled by user");
+			});
+			contextMenu.add(createFolderItem);
 
-		JMenuItem createFolderItem = new JMenuItem("New directory");
-		createFolderItem.addActionListener(e -> {
-			String folderName = JOptionPane.showInputDialog(this, "Directory name:");
-			if (folderName != null && !folderName.trim().isEmpty()) {
-				File newFolder = new File(file.isDirectory() ? file.getAbsolutePath() : file.getParent(), folderName);
-				if (newFolder.mkdir()) {
-					log(file.toString()+": created");
-					DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) projectTree.getSelectionPath()
-							.getLastPathComponent();
-					if (!file.isDirectory())
-						selectedNode = (DefaultMutableTreeNode) selectedNode.getParent();
-					DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(newFolder);
-					selectedNode.add(newNode);
-					treeModel.reload(selectedNode);
-				} else {
-					JOptionPane.showMessageDialog(this, "Directory creation failed.", "Error",
-							JOptionPane.ERROR_MESSAGE);
-					log(file.toString()+": failed to create");
-				}
-			}
-			else
-				log(file.toString()+": cancelled by user");
-		});
-		contextMenu.add(createFolderItem);
+			contextMenu.addSeparator();
+		}
 
 		JMenuItem openExplorerItem = new JMenuItem("Show in explorer");
 		openExplorerItem.addActionListener(e -> {
@@ -1217,8 +1264,8 @@ public class CodeEditor extends JFrame {
 			}
 		});
 		contextMenu.add(openExplorerItem);
-		
-		if(file.isDirectory()) {
+
+		if (file.isDirectory()) {
 			JMenuItem rebaseItem = new JMenuItem("Open as project");
 			rebaseItem.addActionListener(e -> {
 				try {
@@ -1233,8 +1280,21 @@ public class CodeEditor extends JFrame {
 			contextMenu.add(rebaseItem);
 		}
 
+		contextMenu.addSeparator();
+
+		JMenuItem renameItem = new JMenuItem("Rename");
+		renameItem.addActionListener(e -> rename(file));
+		contextMenu.add(renameItem);
+
 		JMenuItem deleteItem = new JMenuItem("Delete");
-		deleteItem.addActionListener(e -> {
+		deleteItem.addActionListener(e -> deleteFile(file));
+		contextMenu.add(deleteItem);
+
+		contextMenu.show(projectTree, x, y);
+	}
+	
+	private void deleteFile(File file) {
+		{
 			int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete " + file.getName() + "?",
 					"Delete File", JOptionPane.YES_NO_OPTION);
 			if (confirm == JOptionPane.YES_OPTION) {
@@ -1243,7 +1303,8 @@ public class CodeEditor extends JFrame {
 						deleteDirectory(file);
 					} else {
 						Files.delete(file.toPath());
-						tabbedPane.remove(openFilesMap.get(file).getParent().getParent());
+						if (openFilesMap.get(file) != null)
+							tabbedPane.remove(openFilesMap.get(file).getParent().getParent());
 						openFilesMap.remove(file);
 						dirtyMap.remove(file);
 					}
@@ -1251,19 +1312,15 @@ public class CodeEditor extends JFrame {
 							.getLastPathComponent();
 					selectedNode.removeFromParent();
 					treeModel.reload();
-					log(file.toString()+": deleted");
+					log(file.toString() + ": deleted");
 				} catch (IOException ex) {
-					log(file.toString()+": failed to delete");
-					JOptionPane.showMessageDialog(this, "Deletion failed: "+e.toString(), "Error",
+					log(file.toString() + ": failed to delete");
+					JOptionPane.showMessageDialog(this, "Deletion failed: " + ex.toString(), "Error",
 							JOptionPane.ERROR_MESSAGE);
 				}
-			}
-			else
-				log(file.toString()+": cancelled by user");
-		});
-		contextMenu.add(deleteItem);
-
-		contextMenu.show(projectTree, x, y);
+			} else
+				log(file.toString() + ": cancelled by user");
+		}
 	}
 
 	private void deleteDirectory(File directory) throws IOException {
@@ -1294,63 +1351,99 @@ public class CodeEditor extends JFrame {
 		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, KeyEvent.CTRL_DOWN_MASK), "replace");
 		CodeEditor thisObj = this;
 		actionMap.put("closeFile", new AbstractAction() {
+			private static final long serialVersionUID = 9209165124982821882L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				closeFile(currentFile);
 			}
 		});
 		actionMap.put("saveFile", new AbstractAction() {
+			private static final long serialVersionUID = -7470772844920841362L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				saveCurrentFile();
 			}
 		});
 		actionMap.put("uicopy", new AbstractAction() {
+			private static final long serialVersionUID = -2848581416420978728L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				copy();
 			}
 		});
 		actionMap.put("uipaste", new AbstractAction() {
+			private static final long serialVersionUID = 1787082954032698363L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				paste();
 			}
 		});
 		actionMap.put("uicut", new AbstractAction() {
+			private static final long serialVersionUID = -1105434388308503474L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				cut();
 			}
 		});
 		actionMap.put("uiundo", new AbstractAction() {
+			private static final long serialVersionUID = 8406056850614767499L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				undo();
 			}
 		});
 		actionMap.put("uiredo", new AbstractAction() {
+			private static final long serialVersionUID = -3657508890779731058L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				redo();
 			}
 		});
 		actionMap.put("run", new AbstractAction() {
+			private static final long serialVersionUID = 229256907978587772L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				runCommand();
 			}
 		});
 		actionMap.put("search", new AbstractAction() {
+			private static final long serialVersionUID = -4547284488040065226L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				Search.getInstance().showSearchDialog(thisObj);
 			}
 		});
 		actionMap.put("replace", new AbstractAction() {
+			private static final long serialVersionUID = 5959636973284522325L;
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				showReplaceDialog();
+			}
+		});
+		actionMap.put("fileuirename", new AbstractAction() {
+			private static final long serialVersionUID = 5809902219160600284L;
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				rename((File)projectTree.getLastSelectedPathComponent());
+			}
+		});
+		actionMap.put("fileuidelete", new AbstractAction() {
+			private static final long serialVersionUID = 3233089824931581771L;
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				deleteFile((File)projectTree.getLastSelectedPathComponent());
 			}
 		});
 	}
@@ -1418,6 +1511,36 @@ public class CodeEditor extends JFrame {
 			}
 		}
 		return null;
+	}
+	
+	private void rename(File file) {
+		{
+			String newName = (String) JOptionPane.showInputDialog(null, "Enter new name for " + file.getName() + ":",
+					"Rename", JOptionPane.PLAIN_MESSAGE, null, null, file.getName());
+			if (newName != null && !newName.trim().isEmpty()) {
+				File newFile = new File(file.getParentFile(), newName);
+				if (file.renameTo(newFile)) {
+					// Update references to the renamed file
+					int tabbedIndex = tabbedPane.indexOfTab(file.getName());
+					if (tabbedIndex >= 0) {
+						JLabel tabLabel = (JLabel) ((JPanel) tabbedPane.getTabComponentAt(tabbedIndex)).getComponent(0);
+						tabLabel.setText(dirtyMap.get(file) ? newFile.getName() + " * " : newFile.getName() + " ");
+					}
+
+					// Update the tree node
+					DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) projectTree.getSelectionPath()
+							.getLastPathComponent();
+					treeModel.reload(selectedNode);
+
+					log(file.toString() + ": renamed to " + newFile.toString());
+				} else {
+					log(file.toString() + ": failed to rename");
+					JOptionPane.showMessageDialog(this, "Renaming failed.", "Error", JOptionPane.ERROR_MESSAGE);
+				}
+			} else {
+				log(file.toString() + ": rename cancelled by user");
+			}
+		}
 	}
 
 	public String getSelectedText() {

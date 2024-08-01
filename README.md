@@ -1,29 +1,29 @@
-# Jace
+# Mango
 
-Just another code editor...<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;... but its simple, lightweight, and runs tasks.
+A tasty code editor; simple, lightweight, and runnable.
 
 ### About
 
-There are a lot of tools to write code in various languages, and Jace here is my suggestion. The main idea is to provide a reliable version of commonly useful features at a fraction of the complexity. Jump straight into coding and running things, with a minimal learning curve.
+There are a lot of tools to write code in various languages, and Mango here is the one I am creating. The main idea is to provide common useful features at a fraction of the complexity... Ony might say as simple as eating a fruit! :-) Jump straight into coding and running things.
 
-Can you get more advanced features in something like InteliJ and VSCode? For sure! But these may come at the cost of performance issues. One could also use something lightweight like Notepad++ and run things from the terminal. But there is something to be gained by automating tasks and keeping open multiple runs.
+Mango is kept simple by providing a small set of vital operations that do not need menus organize.
+Most UI buttons can be used with common shortcuts; hover over them for a refresher.
 
-### The editor
+![preview](preview.png)
 
-As far as editors go, Jace is kept simple to the degree that menus are avoided. Most UI elements are also used via common shortcuts; hover over UI elements for a refresher on shortcuts. The first UI option opens a new project in place of the current one, but there is no issue with multiple Jace instances to work on multiple projects.
-
-**Project navigation:** The important thing to remember is that you can open files by double-clicking on them. Options for the management of files/directories and different types of multiple tab closing appear with right clicks. 
 
 ### Run configurations
 
-Jace lets users define run configurations associated with certain file types.
-Configurations are read from each project's directory from a ``.jace.yaml` file;
-this can be either written and edited by hand, or generated with the UI. 
-The file contains named task entries. Each task comprises the the three declarations demonstrated below: a) a list of file extensions to associate, b) the language's highlighter (lesser known languages can borrow highlighters from established ones), and c) a command line command to run.
+Tasks (e.g., compilation) can be associated with certain file types.
+Configurations are read from each project's directory from a ``.mango.yaml` file
+that the editor edits through a dialog. 
+The file contains named task entries, each comprising three types of info:
+a) a list of file extensions to associate, b) the language's highlighter 
+(lesser known languages can borrow highlighters from established ones),
+and c) a command line command to run.
 
 ```yaml
-// file: .jace.yaml
+// file: .mango.yaml
 tasks:
   python:
     extensions: [py]
@@ -37,7 +37,7 @@ tasks:
 
 ### Acknowledgements
 
-I want to give a big shout out to the RSyntaxTextArea project. This is an incredibly mature and easy-to-use solution for code highlighting in Java, which is undoubtedly one of Jace's nicest features.
+I want to give a big shout out to the RSyntaxTextArea project, which Mango uses as a robust syntax highlighter.
 
 ### Contributing
 
