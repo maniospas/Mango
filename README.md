@@ -20,7 +20,7 @@ As far as editors go, Jace is kept simple to the degree that menus are avoided. 
 Jace lets users define run configurations associated with certain file types.
 Configurations are read from each project's directory from a ``.jace.yaml` file;
 this can be either written and edited by hand, or generated with the UI. 
-The file contains named task entries that comprise the three declarations demonstrated below: a) a list of file extensions to associate, b) the language's highlighter (lesser known languages can borrow highlighters from established ones), and c) a command line command to run.
+The file contains named task entries. Each task comprises the the three declarations demonstrated below: a) a list of file extensions to associate, b) the language's highlighter (lesser known languages can borrow highlighters from established ones), and c) a command line command to run.
 
 ```yaml
 // file: .jace.yaml
@@ -33,7 +33,6 @@ tasks:
     extensions: [cpp, h]
     highlighter: cpp
     command: g++ -I./include src/*.cpp main.cpp -o main -O2 -fdiagnostics-color
-
 ```
 
 ### Acknowledgements

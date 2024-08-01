@@ -13,6 +13,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.awt.*;
@@ -20,6 +21,9 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowFocusListener;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -27,8 +31,12 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class CodeEditor extends JFrame {
 	private static final long serialVersionUID = 1431536465167923296L;
@@ -56,6 +64,18 @@ public class CodeEditor extends JFrame {
 		setSize(800, 600);
 		setLocationRelativeTo(null);
 		setExtendedState(JFrame.MAXIMIZED_BOTH);
+		
+		addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                try {
+                	promptSaveAllFiles();
+                    System.exit(0);
+                }
+                catch(RuntimeException ex) {
+                }
+            }
+        });
 
 		JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 		splitPane.setDividerLocation(400);
@@ -92,9 +112,12 @@ public class CodeEditor extends JFrame {
 					if (path != null) {
 						projectTree.setSelectionPath(path);
 						DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path.getLastPathComponent();
-						if (selectedNode != null && selectedNode.isLeaf()) {
+						if (selectedNode != null) {
 							File selectedFile = (File) selectedNode.getUserObject();
-							openFile(selectedFile);
+							if(selectedFile.isDirectory())
+								addFilesToNode(selectedNode, selectedFile);
+							else
+								openFile(selectedFile);
 						}
 					}
 				}
@@ -104,9 +127,11 @@ public class CodeEditor extends JFrame {
 			@Override
 			public void treeExpanded(TreeExpansionEvent event) {
 				DefaultMutableTreeNode node = (DefaultMutableTreeNode) event.getPath().getLastPathComponent();
-				File file = (File) node.getUserObject();
-				if (file.isDirectory())
+				//System.out.println(node.getUserObject());
+				File file = (File) new File(node.getUserObject().toString());
+				if (file.isDirectory() && (node.getChildCount() == 1 && node.getChildAt(0).toString().equals("Loading..."))) {
 					addFilesToNode(node, file);
+				}
 			}
 
 			@Override
@@ -114,6 +139,17 @@ public class CodeEditor extends JFrame {
 				// No action needed
 			}
 		});
+        addWindowFocusListener(new WindowFocusListener() {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
+                refreshContent(projectTree);
+            }
+
+            @Override
+            public void windowLostFocus(WindowEvent e) {
+                // Do nothing when window loses focus
+            }
+        });
 		JScrollPane treeScrollPane = new JScrollPane(projectTree);
 		upperSplitPane.setLeftComponent(treeScrollPane);
 
@@ -537,6 +573,8 @@ public class CodeEditor extends JFrame {
 			textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_MARKDOWN);
 		if (file.getName().endsWith(".py"))
 			textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_PYTHON);
+		if (file.getName().endsWith(".rb"))
+			textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_RUBY);
 	}
 
 	private void setDirty(File file, boolean dirty) {
@@ -670,7 +708,37 @@ public class CodeEditor extends JFrame {
 			promptSaveAllFiles();
 		} catch (RuntimeException e) {
 			return;
-		}
+		}String filepath = currentFile.getAbsolutePath().replace("\\", "/");
+		String command = runLanguage.getCommand()
+				.replace("{path}",
+						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
+				.replace("{path/}", filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
+				.replace("{path.}",
+						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", ".")
+								: ".")
+				.replace("{path\\}",
+						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", "\\")
+								: ".")
+				.replace("{file}",
+						filepath.contains(".")
+								? filepath.substring(filepath.lastIndexOf("/") + 1, filepath.lastIndexOf("."))
+								: filepath.substring(filepath.lastIndexOf("/") + 1))
+				.replace("{ext}", filepath.contains(".") ? filepath.substring(filepath.lastIndexOf(".")) : "");
+		
+
+		Pattern pattern = Pattern.compile("\\{(.*?)\\}");
+        Matcher matcher = pattern.matcher(command);
+
+        StringBuffer resultString = new StringBuffer();
+        while (matcher.find()) {
+            String placeholder = matcher.group(1);
+            String userInput = JOptionPane.showInputDialog(this, "Enter " + placeholder + ":");
+            if(userInput==null)
+            	return;
+            matcher.appendReplacement(resultString, userInput);
+        }
+        matcher.appendTail(resultString);
+        command = resultString.toString();
 		
 		JTextPane consoleOutput = new JTextPane();
 		consoleOutput.setContentType("text/html");
@@ -705,22 +773,9 @@ public class CodeEditor extends JFrame {
 		consoleTabbedPane.addTab("Run Output", scrollPane);
 		consoleTabbedPane.setTabComponentAt(consoleTabbedPane.getTabCount() - 1, tabComponent);
 		consoleTabbedPane.setSelectedComponent(scrollPane);
-		String filepath = currentFile.getAbsolutePath().replace("\\", "/");
-		String command = runLanguage.getCommand()
-				.replace("{path}",
-						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
-				.replace("{path/}", filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1) : ".")
-				.replace("{path.}",
-						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", ".")
-								: ".")
-				.replace("{path\\}",
-						filepath.contains("/") ? filepath.substring(0, filepath.lastIndexOf("/") + 1).replace("/", "\\")
-								: ".")
-				.replace("{file}",
-						filepath.contains(".")
-								? filepath.substring(filepath.lastIndexOf("/") + 1, filepath.lastIndexOf("."))
-								: filepath.substring(filepath.lastIndexOf("/") + 1))
-				.replace("{ext}", filepath.contains(".") ? filepath.substring(filepath.lastIndexOf(".")) : "");
+		
+		
+		
 		ProcessBuilder processBuilder = new ProcessBuilder(command.split(" "));
 		processBuilder.directory(projectDir);
 		ANSI.appendAnsiText(consoleOutput, command + "\n\n");
@@ -982,11 +1037,58 @@ public class CodeEditor extends JFrame {
 			// Operation was cancelled by the user, do nothing
 		}
 	}
+	
+	private void refreshContent(JTree tree) {
+	    // Save expanded paths as file paths
+		ArrayList<String> expandedPaths = new ArrayList<String>();
+	    Enumeration<TreePath> enumeration = tree.getExpandedDescendants(new TreePath(treeModel.getRoot()));
+	    if (enumeration != null) {
+	        while (enumeration.hasMoreElements()) {
+	            TreePath treePath = enumeration.nextElement();
+	            DefaultMutableTreeNode node = (DefaultMutableTreeNode) treePath.getLastPathComponent();
+	            if(!(node.getUserObject() instanceof File))
+	            	continue;
+	            File file = (File) node.getUserObject();
+	            expandedPaths.add(file.getAbsolutePath());
+	        }
+	    }
+
+	    // Refresh the tree content
+	    DefaultMutableTreeNode root = new DefaultMutableTreeNode(projectDir.getName());
+	    treeModel.setRoot(root);
+		root.add(new DefaultMutableTreeNode("Loading..."));
+	    addFilesToNode(root, projectDir);
+	    treeModel.reload();
+	    Collections.sort(expandedPaths); // needed to have the correct hierarchical order when loading
+
+	    // Restore expanded paths
+	    for (String path : expandedPaths) {
+	        TreePath treePath = findTreePath(root, path);
+	        if (treePath != null) {
+	            tree.expandPath(treePath);
+	        }
+	    }
+	}
+	private TreePath findTreePath(DefaultMutableTreeNode root, String path) {
+	    Enumeration<TreeNode> enumeration = root.breadthFirstEnumeration();
+	    while (enumeration.hasMoreElements()) {
+	        DefaultMutableTreeNode node = (DefaultMutableTreeNode) enumeration.nextElement();
+	        if(!(node.getUserObject() instanceof File))
+	        	continue;
+	        File file = (File) node.getUserObject();
+	        if (file.getAbsolutePath().equals(path)) {
+	            return new TreePath(node.getPath());
+	        }
+	    }
+	    return null;
+	}
+
 
 	public void openProject(File dir) {
 		this.projectDir = dir;
 		DefaultMutableTreeNode root = new DefaultMutableTreeNode(dir.getName());
 		treeModel.setRoot(root);
+		root.add(new DefaultMutableTreeNode("Loading..."));
 		addFilesToNode(root, dir);
 		treeModel.reload();
 		setTitle("Jace - " + dir.getName());
@@ -1020,17 +1122,18 @@ public class CodeEditor extends JFrame {
 	}
 
 	private void addFilesToNode(DefaultMutableTreeNode node, File file) {
-		if (file.isDirectory()) {
+		if (file.isDirectory() && node.getChildCount() == 1 && node.getChildAt(0).toString().equals("Loading...")) {
 			File[] files = file.listFiles();
 			node.removeAllChildren();
-			if (files != null) {
+			if (files != null  ) {
 				// Add directories first
 				for (File child : files) {
 					if (child.isDirectory() && !child.getName().startsWith(".") && !child.getName().startsWith("__")) {
 						DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(child.getName());
 						childNode.setUserObject(child);
 						node.add(childNode);
-						addFilesToNode(childNode, child);
+						childNode.add(new DefaultMutableTreeNode("Loading..."));
+						//addFilesToNode(childNode, child);
 					}
 				}
 				// Add files after directories
@@ -1042,6 +1145,9 @@ public class CodeEditor extends JFrame {
 					}
 				}
 			}
+			treeModel.reload(node); 
+			//SwingUtilities.invokeLater(() -> {treeModel.reload();});
+	        
 		}
 	}
 
@@ -1111,6 +1217,21 @@ public class CodeEditor extends JFrame {
 			}
 		});
 		contextMenu.add(openExplorerItem);
+		
+		if(file.isDirectory()) {
+			JMenuItem rebaseItem = new JMenuItem("Open as project");
+			rebaseItem.addActionListener(e -> {
+				try {
+					promptSaveAllFiles();
+					closeAllFiles();
+					File newProjectDir = file;
+					openProject(newProjectDir);
+				} catch (RuntimeException ex) {
+					log("Open project: cancelled by user");
+				}
+			});
+			contextMenu.add(rebaseItem);
+		}
 
 		JMenuItem deleteItem = new JMenuItem("Delete");
 		deleteItem.addActionListener(e -> {
