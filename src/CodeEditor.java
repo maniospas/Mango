@@ -639,7 +639,7 @@ public class CodeEditor extends JFrame {
 			for (Tasks.Task task : languageConfig.getTasks().values()) {
 				for (String extension : task.getExtensions()) {
 					if (file.getName().endsWith("." + extension)) {
-						textArea.setSyntaxEditingStyle("text/" + task.getHighlighter());
+						textArea.setSyntaxEditingStyle("text/" + task.getHighlighter().replace("text/", ""));
 						return;
 					}
 				}
