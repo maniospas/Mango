@@ -33,15 +33,17 @@ public class TasksEditor {
         SyntaxConstants.SYNTAX_STYLE_JAVA.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_PYTHON.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT.replace("text/", ""),
+        SyntaxConstants.SYNTAX_STYLE_TYPESCRIPT.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_HTML.replace("text/", ""),
+        SyntaxConstants.SYNTAX_STYLE_XML.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_C.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_CSHARP.replace("text/", ""),
-        SyntaxConstants.SYNTAX_STYLE_XML.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_SQL.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_JSON.replace("text/", ""),
         //SyntaxConstants.SYNTAX_STYLE_BASH.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_RUBY.replace("text/", ""),
+        SyntaxConstants.SYNTAX_STYLE_RUST.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_GO.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_KOTLIN.replace("text/", ""),
         SyntaxConstants.SYNTAX_STYLE_SCALA.replace("text/", ""),
@@ -51,13 +53,17 @@ public class TasksEditor {
         SyntaxConstants.SYNTAX_STYLE_MARKDOWN.replace("text/", "")
     };
 
-    public static void createTasks(CodeEditor codeEditor, Tasks tasks) {
+    public static void createTasks(CodeEditor codeEditor) {
+    	Tasks tasks = codeEditor.reloadTasks();
         JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(codeEditor), "Tasks (.mango.yaml)", true);
         dialog.setSize(new Dimension(800, 400));
         dialog.setMinimumSize(new Dimension(800, 400));
         dialog.setMaximumSize(new Dimension(800, 400));
         dialog.setLayout(new BorderLayout());
-        
+
+        dialog.setIconImage(
+				new ImageIcon(CodeEditor.class.getResource("/icons/mango.png"))
+				.getImage());
         // Center the dialog
         dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(codeEditor));
 

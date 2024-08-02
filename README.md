@@ -4,13 +4,16 @@ A tasty code editor; simple, lightweight, and runnable.
 
 ### About
 
-There are a lot of tools to write code in various languages, and Mango here 
-is the one I am creating. The main idea is to provide common useful 
-features at a fraction of the complexity... Perhaps as simple as eating a fruit! 
-:mango: Jump straight into coding and running things.
+There are a lot of tools for code writing, and Mango here 
+is what I would like the experience to feel like:
+common useful features at a fraction of the 
+complexity. As simple as eating a fruit! 
+:mango: Even first-time users can jump straight into coding 
+and running things.
 
-Mango is kept simple by providing a small set of vital operations that do not need menus organize.
-Most UI buttons can be used with common shortcuts; hover over them for a refresher.
+Mango is kept simple by providing a small set of vital operations 
+that do not need menus organize. Most UI buttons are mapped to well-known 
+shortcuts; hover over them for a refresher.
 
 ![preview](preview.png)
 

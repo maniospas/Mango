@@ -44,7 +44,7 @@ public class CodeEditor extends JFrame {
 	private DefaultTreeModel treeModel;
 	private JTabbedPane tabbedPane;
 	private JTabbedPane consoleTabbedPane;
-	private Map<File, RSyntaxTextArea> openFilesMap = new HashMap<>();
+	private Map<File, Component> openFilesMap = new HashMap<>();
 	private Map<File, Boolean> dirtyMap = new HashMap<>();
 	private Map<Component, Process> consoleProcessMap = new HashMap<>();
 	public File projectDir;
@@ -188,7 +188,7 @@ public class CodeEditor extends JFrame {
 		JButton taskButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/settings.png"))
 				.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
 		taskButton.setToolTipText("Edit tasks");
-		taskButton.addActionListener(e -> TasksEditor.createTasks(thisObj, languageConfig));
+		taskButton.addActionListener(e -> TasksEditor.createTasks(thisObj));
 		mainToolBar.add(taskButton);
 
 		// Search and Replace Toolbar
@@ -279,96 +279,189 @@ public class CodeEditor extends JFrame {
 	}
 
 	private void openFile(File file) {
-		if(file.getName().equals(".mango.yaml")) {
-			TasksEditor.createTasks(this, languageConfig);
-			return;
-		}
-		currentFile = file;
-		if (openFilesMap.containsKey(file)) {
-			tabbedPane.setSelectedComponent(openFilesMap.get(file).getParent().getParent());
-		} else {
-			try {
-				String content = new String(Files.readAllBytes(file.toPath()));
-				RSyntaxTextArea textArea = new RSyntaxTextArea(content, 20, 80);
-				textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);
-				textArea.setCodeFoldingEnabled(true);
-				updateSyntaxHighlighter(file, textArea);
-				setupKeyBindings(textArea.getActionMap(), textArea.getInputMap());
+	    if(file.getName().equals(".mango.yaml")) {
+	        TasksEditor.createTasks(this);
+	        return;
+	    }
+	    currentFile = file;
+	    if (openFilesMap.containsKey(file)) {
+	    	System.out.println(getParentInPane(openFilesMap.get(file)));
+	        tabbedPane.setSelectedComponent(getParentInPane(openFilesMap.get(file)));
+	    } else {
+	        if (isImageFile(file)) {
+	            openImageFile(file);
+	        } else {
+	            try {
+	                String content = new String(Files.readAllBytes(file.toPath()));
+	                RSyntaxTextArea textArea = new RSyntaxTextArea(content, 20, 80);
+	                textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);
+	                textArea.setCodeFoldingEnabled(true);
+	                updateSyntaxHighlighter(file, textArea);
+	                setupKeyBindings(textArea.getActionMap(), textArea.getInputMap());
 
-				RTextScrollPane sp = new RTextScrollPane(textArea);
+	                RTextScrollPane sp = new RTextScrollPane(textArea);
 
-				// Create tab component with close button
-				JPanel tabComponent = new JPanel(new BorderLayout());
-				tabComponent.setOpaque(false);
-				JLabel tabLabel = new JLabel(file.getName());
-				tabLabel.setToolTipText(file.getAbsolutePath());
-				JButton closeButton = new JButton(
-						new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/close.png")).getImage()
-								.getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
-				closeButton.setPreferredSize(new Dimension(16, 16));
-				closeButton.addActionListener(e -> closeFile(file));
-				closeButton.setFocusable(false);
-				tabComponent.add(tabLabel, BorderLayout.WEST);
-				tabComponent.add(closeButton, BorderLayout.EAST);
+	                // Create tab component with close button
+	                JPanel tabComponent = new JPanel(new BorderLayout());
+	                tabComponent.setOpaque(false);
+	                JLabel tabLabel = new JLabel(file.getName());
+	                tabLabel.setToolTipText(file.getAbsolutePath());
+	                JButton closeButton = new JButton(
+	                        new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/close.png")).getImage()
+	                                .getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
+	                closeButton.setPreferredSize(new Dimension(16, 16));
+	                closeButton.addActionListener(e -> closeFile(file));
+	                closeButton.setFocusable(false);
+	                tabComponent.add(tabLabel, BorderLayout.WEST);
+	                tabComponent.add(closeButton, BorderLayout.EAST);
 
-				tabbedPane.addTab(file.getName(), sp);
-				tabbedPane.setTabComponentAt(tabbedPane.getTabCount() - 1, tabComponent);
-				tabbedPane.setSelectedComponent(sp);
+	                tabbedPane.addTab(file.getName(), sp);
+	                tabbedPane.setTabComponentAt(tabbedPane.getTabCount() - 1, tabComponent);
+	                tabbedPane.setSelectedComponent(sp);
 
-				// Add mouse listener to label for selecting the tab and showing context menu
-				tabLabel.addMouseListener(new MouseAdapter() {
-					@Override
-					public void mouseClicked(MouseEvent e) {
-						int tabIndex = tabbedPane.indexOfTabComponent(tabComponent);
-						if (tabIndex != -1) {
-							tabbedPane.setSelectedIndex(tabIndex);
-						}
+	                // Add mouse listener to label for selecting the tab and showing context menu
+	                tabLabel.addMouseListener(new MouseAdapter() {
+	                    @Override
+	                    public void mouseClicked(MouseEvent e) {
+	                        int tabIndex = tabbedPane.indexOfTabComponent(tabComponent);
+	                        if (tabIndex != -1) {
+	                            tabbedPane.setSelectedIndex(tabIndex);
+	                        }
 
-						if (SwingUtilities.isRightMouseButton(e)) {
-							showTabContextMenu(e, tabIndex);
-						}
-					}
-				});
+	                        if (SwingUtilities.isRightMouseButton(e)) {
+	                            showTabContextMenu(e, tabIndex);
+	                        }
+	                    }
+	                });
 
-				openFilesMap.put(file, textArea);
-				dirtyMap.put(file, false); // File initially not dirty
+	                openFilesMap.put(file, textArea);
+	                dirtyMap.put(file, false); // File initially not dirty
 
-				textArea.getDocument().addDocumentListener(new DocumentListener() {
-					@Override
-					public void insertUpdate(DocumentEvent e) {
-						setDirty(file, true);
-					}
+	                textArea.getDocument().addDocumentListener(new DocumentListener() {
+	                    @Override
+	                    public void insertUpdate(DocumentEvent e) {
+	                        setDirty(file, true);
+	                    }
 
-					@Override
-					public void removeUpdate(DocumentEvent e) {
-						setDirty(file, true);
-					}
+	                    @Override
+	                    public void removeUpdate(DocumentEvent e) {
+	                        setDirty(file, true);
+	                    }
 
-					@Override
-					public void changedUpdate(DocumentEvent e) {
-						setDirty(file, true);
-					}
-				});
+	                    @Override
+	                    public void changedUpdate(DocumentEvent e) {
+	                        setDirty(file, true);
+	                    }
+	                });
 
-				tabbedPane.addChangeListener(new ChangeListener() {
-					public void stateChanged(ChangeEvent e) {
-						if (tabbedPane.getTabCount() > 0 && tabbedPane.getSelectedComponent() != null) {
-							for (Map.Entry<File, RSyntaxTextArea> entry : openFilesMap.entrySet()) {
-								if (entry.getValue().getParent().getParent() == tabbedPane.getSelectedComponent()) {
-									currentFile = entry.getKey();
-									updateTreeSelection(currentFile);
-									break;
-								}
-							}
-						}
-					}
-				});
+	                tabbedPane.addChangeListener(new ChangeListener() {
+	                    public void stateChanged(ChangeEvent e) {
+	                        if (tabbedPane.getTabCount() > 0 && tabbedPane.getSelectedComponent() != null) {
+	                            for (Map.Entry<File, Component> entry : openFilesMap.entrySet()) {
+	                                if (getParentInPane(entry.getValue()) == tabbedPane.getSelectedComponent()) {
+	                                    currentFile = entry.getKey();
+	                                    updateTreeSelection(currentFile);
+	                                    break;
+	                                }
+	                            }
+	                        }
+	                    }
+	                });
 
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+	            } catch (IOException e) {
+	                e.printStackTrace();
+	            }
+	        }
+	    }
 	}
+
+	private boolean isImageFile(File file) {
+	    String[] imageExtensions = {".jpg", ".jpeg", ".png", ".gif", ".bmp"};
+	    for (String ext : imageExtensions) {
+	        if (file.getName().toLowerCase().endsWith(ext)) {
+	            return true;
+	        }
+	    }
+	    return false;
+	}
+
+	private void openImageFile(File file) {
+	    try {
+	        ImageIcon imageIcon = new ImageIcon(file.getAbsolutePath());
+	        double initialScale = 0.5;
+	        int originalWidth = imageIcon.getIconWidth();
+	        int originalHeight = imageIcon.getIconHeight();
+	        int sizex = (int) Math.min(this.getWidth(), this.getHeight() * originalWidth / originalHeight);
+	        sizex = (int) (sizex * initialScale);
+	        int sizey = sizex * originalHeight / originalWidth;
+
+	        JLabel imageLabel = new JLabel(new ImageIcon(imageIcon.getImage().getScaledInstance(sizex, sizey, Image.SCALE_SMOOTH)));
+	        JLabel dimensionsLabel = new JLabel("Actual size: " + originalWidth + "x" + originalHeight);
+	        dimensionsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+	        JScrollPane imageScrollPane = new JScrollPane(imageLabel);
+
+	        JSlider scaleSlider = new JSlider(25, 400, 100); // Scale slider from 0.25 to 4.0
+	        scaleSlider.setMajorTickSpacing(50);
+	        scaleSlider.setPaintTicks(true);
+	        scaleSlider.setPaintLabels(false);
+
+	        scaleSlider.addChangeListener(e -> {
+	            double scale = scaleSlider.getValue() / 100.0 * initialScale;
+	            int newSizex = (int) Math.min(this.getWidth(), this.getHeight() * originalWidth / originalHeight);
+	            newSizex = (int) (newSizex * scale);
+	            int newSizey = newSizex * originalHeight / originalWidth;
+	            imageLabel.setIcon(new ImageIcon(imageIcon.getImage().getScaledInstance(newSizex, newSizey, Image.SCALE_SMOOTH)));
+	            imageLabel.revalidate();
+	        });
+
+	        JPanel topPanel = new JPanel(new BorderLayout());
+	        topPanel.add(dimensionsLabel, BorderLayout.NORTH);
+	        topPanel.add(scaleSlider, BorderLayout.SOUTH);
+
+	        JPanel imagePanel = new JPanel(new BorderLayout());
+	        imagePanel.add(topPanel, BorderLayout.NORTH);
+	        imagePanel.add(imageScrollPane, BorderLayout.CENTER);
+
+	        JPanel tabComponent = new JPanel(new BorderLayout());
+	        tabComponent.setOpaque(false);
+	        JLabel tabLabel = new JLabel(file.getName());
+	        tabLabel.setToolTipText(file.getAbsolutePath());
+	        JButton closeButton = new JButton(
+	                new ImageIcon(new ImageIcon(getClass().getResource("/icons/close.png")).getImage()
+	                        .getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
+	        closeButton.setPreferredSize(new Dimension(16, 16));
+	        closeButton.addActionListener(e -> closeFile(file));
+	        closeButton.setFocusable(false);
+	        tabComponent.add(tabLabel, BorderLayout.WEST);
+	        tabComponent.add(closeButton, BorderLayout.EAST);
+
+	        tabbedPane.addTab(file.getName(), imagePanel);
+	        tabbedPane.setTabComponentAt(tabbedPane.getTabCount() - 1, tabComponent);
+	        tabbedPane.setSelectedComponent(imagePanel);
+	        openFilesMap.put(file, imageScrollPane);
+	        dirtyMap.put(file, false);
+
+	        // Add mouse listener to label for selecting the tab and showing context menu
+	        tabLabel.addMouseListener(new MouseAdapter() {
+	            @Override
+	            public void mouseClicked(MouseEvent e) {
+	                int tabIndex = tabbedPane.indexOfTabComponent(tabComponent);
+	                if (tabIndex != -1) {
+	                    tabbedPane.setSelectedIndex(tabIndex);
+	                }
+
+	                if (SwingUtilities.isRightMouseButton(e)) {
+	                    showTabContextMenu(e, tabIndex);
+	                }
+	            }
+	        });
+
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	    }
+	}
+
 
 	// Method to show context menu
 	private void showTabContextMenu(MouseEvent e, int tabIndex) {
@@ -528,11 +621,11 @@ public class CodeEditor extends JFrame {
 		}
 	}
 
-	private HashMap<RSyntaxTextArea, File> areaToFile;
+	private HashMap<Component, File> areaToFile;
 
 	private void updateInverseTextAreaMap() {
-		areaToFile = new HashMap<RSyntaxTextArea, File>();
-		for (Map.Entry<File, RSyntaxTextArea> entry : openFilesMap.entrySet())
+		areaToFile = new HashMap<Component, File>();
+		for (Map.Entry<File, Component> entry : openFilesMap.entrySet())
 			areaToFile.put(entry.getValue(), entry.getKey());
 	}
 
@@ -600,7 +693,10 @@ public class CodeEditor extends JFrame {
 	private void saveFile(File file) {
 		if (file != null && openFilesMap.containsKey(file)) {
 			try {
-				RSyntaxTextArea textArea = openFilesMap.get(file);
+				Component component = openFilesMap.get(file);
+				if(!(component instanceof RSyntaxTextArea))
+					return;
+				RSyntaxTextArea textArea = (RSyntaxTextArea)component;
 				Files.write(file.toPath(), textArea.getText().getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
 				setDirty(file, false);
 			} catch (IOException e) {
@@ -617,7 +713,7 @@ public class CodeEditor extends JFrame {
 	}
 
 	private void saveAllFiles() {
-		for (Map.Entry<File, RSyntaxTextArea> entry : openFilesMap.entrySet()) {
+		for (Map.Entry<File, Component> entry : openFilesMap.entrySet()) {
 			saveFile(entry.getKey());
 		}
 	}
@@ -647,9 +743,21 @@ public class CodeEditor extends JFrame {
 					return;
 				}
 			}
-			tabbedPane.remove(openFilesMap.get(file).getParent().getParent());
+			tabbedPane.remove(getParentInPane(openFilesMap.get(file)));
 			openFilesMap.remove(file);
 			dirtyMap.remove(file);
+		}
+		else {
+			throw new RuntimeException("No file to close");
+		}
+	}
+	
+	private Component getParentInPane(Component component) {
+		while(true) {
+			Component parent = component.getParent();
+			if(parent==null || parent==tabbedPane)
+				return component;
+			component = parent;
 		}
 	}
 
@@ -696,7 +804,7 @@ public class CodeEditor extends JFrame {
 		    );
 
 		    if (choice == 0) {
-		    	TasksEditor.createTasks(this, languageConfig); 
+		    	TasksEditor.createTasks(this); 
 		    }
 		    return;
 		}
@@ -1148,7 +1256,7 @@ public class CodeEditor extends JFrame {
 		log(projectDir.getAbsolutePath() + ": opened");
 	}
 	
-	public void reloadTasks() {
+	public Tasks reloadTasks() {
 		File yamlFile = new File(".mango.yaml");
 		// Read the project-specific YAML configuration
 		yamlFile = new File(projectDir, ".mango.yaml");
@@ -1156,11 +1264,13 @@ public class CodeEditor extends JFrame {
 			try {
 				languageConfig = Tasks.readYamlConfig(yamlFile, baseLanguageConfig);
 			} catch (Exception e) {
+				languageConfig = new Tasks();
 				JOptionPane.showMessageDialog(this, "Failed to parse the project's configuration: " + e.toString(),
 						"Error", JOptionPane.ERROR_MESSAGE);
 				log(projectDir.getAbsolutePath() + ": failed to parse project configuration");
 			}
 		}
+		return languageConfig;
 	}
 
 	private void addFilesToNode(DefaultMutableTreeNode node, File file) {
@@ -1304,7 +1414,7 @@ public class CodeEditor extends JFrame {
 					} else {
 						Files.delete(file.toPath());
 						if (openFilesMap.get(file) != null)
-							tabbedPane.remove(openFilesMap.get(file).getParent().getParent());
+							tabbedPane.remove(getParentInPane(openFilesMap.get(file)));
 						openFilesMap.remove(file);
 						dirtyMap.remove(file);
 					}
@@ -1450,33 +1560,41 @@ public class CodeEditor extends JFrame {
 
 	private void copy() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			openFilesMap.get(currentFile).copy();
+			Component component = openFilesMap.get(currentFile);
+			if(component instanceof RSyntaxTextArea)
+				((RSyntaxTextArea)component).copy();
 		}
 	}
 
 	private void paste() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			openFilesMap.get(currentFile).paste();
+			Component component = openFilesMap.get(currentFile);
+			if(component instanceof RSyntaxTextArea)
+				((RSyntaxTextArea)component).paste();
 		}
 	}
 
 	private void cut() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			openFilesMap.get(currentFile).cut();
+			Component component = openFilesMap.get(currentFile);
+			if(component instanceof RSyntaxTextArea)
+				((RSyntaxTextArea)component).cut();
 		}
 	}
 
 	private void undo() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			if (openFilesMap.get(currentFile).canUndo())
-				openFilesMap.get(currentFile).undoLastAction();
+			Component component = openFilesMap.get(currentFile);
+			if(component instanceof RSyntaxTextArea)
+				((RSyntaxTextArea)component).undoLastAction();
 		}
 	}
 
 	private void redo() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			if (openFilesMap.get(currentFile).canRedo())
-				openFilesMap.get(currentFile).redoLastAction();
+			Component component = openFilesMap.get(currentFile);
+			if(component instanceof RSyntaxTextArea)
+				((RSyntaxTextArea)component).redoLastAction();
 		}
 	}
 
@@ -1545,8 +1663,9 @@ public class CodeEditor extends JFrame {
 
 	public String getSelectedText() {
 		if (currentFile != null && openFilesMap.containsKey(currentFile)) {
-			RSyntaxTextArea textArea = openFilesMap.get(currentFile);
-			return textArea.getSelectedText();
+			Component component = openFilesMap.get(currentFile);
+			if(component instanceof RSyntaxTextArea)
+				return ((RSyntaxTextArea)component).getSelectedText();
 		}
 		return null;
 	}
@@ -1595,6 +1714,9 @@ public class CodeEditor extends JFrame {
 	}
 
 	public RSyntaxTextArea getCurrentTextArea() {
-		return openFilesMap.getOrDefault(currentFile, null);
+		Component component = openFilesMap.get(currentFile);
+		if(component!=null && component instanceof RSyntaxTextArea)
+			return (RSyntaxTextArea)component;
+		return null;
 	}
 }
