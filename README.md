@@ -21,25 +21,26 @@ shortcuts; hover over them for a refresher.
 ### Run configurations
 
 Tasks (e.g., compilation) can be associated with certain file types.
-Configurations are read from each project's directory from a ``.mango.yaml` file
-that the editor edits through a dialog. 
-The file contains named task entries, each comprising three types of info:
-a) a list of file extensions to associate, b) the language's highlighter 
+Configurations are read from each project's directory from a ``.mango.yaml`.
+For easy of use, Mango offers an organized dialog to edit this file (try to 
+open the file, if it's there, or click on the :gear: button). 
+The configuration contains several named tasks, each with its own list of
+associated file extensions to associate, the highlighter 
 (lesser known languages can borrow highlighters from established ones),
-and c) a command line command to run.
+and a command to run. Multiple commands for the same file appear as options
+to choose from. For instance, in the screenshot above, the running the project's
+.gitignore corresponds is configured to provide a choice between pushing and pulling.
 
-```yaml
-// file: .mango.yaml
-tasks:
-  python:
-    extensions: [py]
-    highlighter: python
-    command: python {path}{file}{ext}
-  compile:
-    extensions: [cpp, h]
-    highlighter: cpp
-    command: g++ -I./include src/*.cpp main.cpp -o main -O2 -fdiagnostics-color
-```
+When writting a command, you may use bracketed substrings to customize it
+for the currently open file: {path}{file}{ext} corresponds to the full path of your file.
+For example, the {file} part when editing "c:\users\maniospas\test.py" is replaced by "test"
+without the quotations). 
+Other bracketed strings are replaced by a message the the user is asked to provide. For
+example, in the screenshot above, the push task includes a custom message that the
+user provides.
+
+:checkmark: **Planned:** Common defaults for working with different types of projects will
+become available in the future.
 
 ### Acknowledgements
 
