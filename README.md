@@ -44,7 +44,11 @@ become available in the future.
 
 ### Acknowledgements
 
-I want to give a big shout out to the RSyntaxTextArea project, which Mango uses as a robust syntax highlighter.
+A big shout out to a couple of project that Mango depends on. These provide robust 
+and highly polished solutions:
+
+- [RSyntaxTextArea](https://bobbylight.github.io/RSyntaxTextArea/) is a syntax highlighter
+- [FlatLaf](https://www.formdev.com/flatlaf) offers many themes beyond Java's conventional ones
 
 ### Contributing
 

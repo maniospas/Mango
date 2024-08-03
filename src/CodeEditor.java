@@ -2,7 +2,14 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
+import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatIntelliJLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.intellijthemes.FlatAllIJThemes;
+
 import javax.swing.*;
+import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
@@ -57,8 +64,11 @@ public class CodeEditor extends JFrame {
 		if (log.size() > 10)
 			log.remove(0);
 	}
+	
 
 	public CodeEditor() {
+		ThemeDialog.loadThemeFromFile();
+		
 		setTitle("Mango - Just another code editor");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setSize(800, 600);
@@ -191,6 +201,12 @@ public class CodeEditor extends JFrame {
 		taskButton.addActionListener(e -> TasksEditor.createTasks(thisObj));
 		mainToolBar.add(taskButton);
 
+		JButton themeButton = new JButton(new ImageIcon(new ImageIcon(CodeEditor.class.getResource("/icons/mango.png"))
+				.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH)));
+		themeButton.setToolTipText("Set theme");
+		themeButton.addActionListener(e -> updateTheme());
+		mainToolBar.add(themeButton);
+
 		// Search and Replace Toolbar
 		JToolBar searchReplaceToolBar = new JToolBar();
 
@@ -264,6 +280,11 @@ public class CodeEditor extends JFrame {
 			System.exit(0);
 		openProject(newProjectDir);
 		consoleTabbedPane.setVisible(false);
+	}
+
+	private void updateTheme() {
+        ThemeDialog dialog = new ThemeDialog(this);
+        dialog.setVisible(true);
 	}
 
 	private File selectProjectDirectory() {
@@ -1677,10 +1698,23 @@ public class CodeEditor extends JFrame {
 
 	public static void main(String[] args) {
 		try {
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
+            // Install FlatLaf themes
+            UIManager.installLookAndFeel("Light", FlatLightLaf.class.getName());
+            UIManager.installLookAndFeel("Dark", FlatDarkLaf.class.getName());
+            UIManager.installLookAndFeel("Darcula", FlatDarculaLaf.class.getName());
+            UIManager.installLookAndFeel("IntelliJ", FlatIntelliJLaf.class.getName());
+            
+            LookAndFeelInfo[] infos = FlatAllIJThemes.INFOS;
+            for (LookAndFeelInfo info : infos) {
+                UIManager.installLookAndFeel(info.getName(), info.getClassName());
+            }
+            
+            // Set the default look and feel
+            UIManager.setLookAndFeel(new FlatLightLaf());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
 		SwingUtilities.invokeLater(() -> {
 			CodeEditor editor = new CodeEditor();
 			editor.setVisible(true);
