@@ -21,25 +21,25 @@ shortcuts; hover over them for a refresher.
 ### Run configurations
 
 Tasks (e.g., compilation) can be associated with certain file types.
-Configurations are read from each project's directory from a ``.mango.yaml`.
-For easy of use, Mango offers an organized dialog to edit this file (try to 
-open the file, if it's there, or click on the :gear: button). 
-The configuration contains several named tasks, each with its own list of
-associated file extensions to associate, the highlighter 
+Configurations are read from a `.mango.yaml` file in the opened top directory.
+For easy of use, Mango offers an organized dialog to edit this file (click on the :gear: 
+button, but you can also try to open it if it's there). 
+The configuration contains several named tasks, each with a list of
+associated file extensions, a code highlighter 
 (lesser known languages can borrow highlighters from established ones),
 and a command to run. Multiple commands for the same file appear as options
-to choose from. For instance, in the screenshot above, the running the project's
-.gitignore corresponds is configured to provide a choice between pushing and pulling.
+to choose from. For instance, in the screenshot above, running the project's
+.gitignore will create a dialog to choose between pushing and pulling.
 
-When writting a command, you may use bracketed substrings to customize it
-for the currently open file: {path}{file}{ext} corresponds to the full path of your file.
-For example, the {file} part when editing "c:\users\maniospas\test.py" is replaced by "test"
-without the quotations). 
-Other bracketed strings are replaced by a message the the user is asked to provide. For
-example, in the screenshot above, the push task includes a custom message that the
-user provides.
+Use bracketed substrings to customize running commands.
+First, for the currently open file, the expression `{path}{file}{ext}` corresponds 
+to its full absolute path.
+For example, the `{file}` part when running `c:\users\maniospas\test.py` is replaced by 
+`test` without the quotations. 
+Other bracketed strings are replaced by a message the the user is asked to fill. For
+example, in the screenshot above, the push task includes a new message each time.
 
-:checkmark: **Planned:** Common defaults for working with different types of projects will
+**Planned:** Common defaults for working with different types of projects will
 become available in the future.
 
 ### Acknowledgements
