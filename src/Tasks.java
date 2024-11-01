@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
 import javax.swing.JTabbedPane;
@@ -52,6 +53,8 @@ public class Tasks {
 	}
 
 	public Map<String, Task> getTasks() {
+		if(tasks==null)
+			tasks = new HashMap<String, Task>();
 		return tasks;
 	}
 
@@ -61,8 +64,15 @@ public class Tasks {
 
 	public static Tasks readYamlConfig(File yamlFile, Tasks previous) throws IOException {
 		Yaml yaml = new Yaml(new Constructor(Tasks.class));
-		try (InputStream inputStream = Files.newInputStream(yamlFile.toPath())) {
-			return ((Tasks) yaml.load(inputStream)).overwrite(previous);
+		Tasks tasks = null;
+		try (InputStream inputStream = Files.newInputStream(yamlFile.toPath())){ 
+			tasks = ((Tasks) yaml.load(inputStream));
+			if(tasks==null)
+				tasks = new Tasks();
+			else
+				tasks.overwrite(previous);
 		}
+		return tasks;
+		
 	}
 }

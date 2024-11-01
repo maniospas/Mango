@@ -75,11 +75,12 @@ public class TasksEditor {
         JPanel tasksPanel = new JPanel();
         tasksPanel.setLayout(new BoxLayout(tasksPanel, BoxLayout.Y_AXIS));
         mainPanel.add(tasksPanel, BorderLayout.NORTH);
-
-        for (Map.Entry<String, Tasks.Task> entry : tasks.getTasks().entrySet()) {
-            JPanel taskPanel = createTaskPanel(entry.getKey(), entry.getValue(), tasksPanel);
-            tasksPanel.add(taskPanel);
-        }
+        
+        if(tasks!=null && tasks.getTasks()!=null)
+			for (Map.Entry<String, Tasks.Task> entry : tasks.getTasks().entrySet()) {
+				JPanel taskPanel = createTaskPanel(entry.getKey(), entry.getValue(), tasksPanel);
+				tasksPanel.add(taskPanel);
+			}
 
         // Create a panel for the add task button
         JPanel addTaskPanel = new JPanel();
@@ -240,6 +241,8 @@ public class TasksEditor {
             }
         }
 
+        if(tasks==null)
+        	tasks = new Tasks();
         tasks.setTasks(newTasks);
     }
 

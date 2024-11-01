@@ -21,7 +21,7 @@ public class ThemeDialog extends JDialog {
     private static final String CONFIG_FILE = "mango.yaml";
 
     public ThemeDialog(JFrame parentFrame) {
-        super(parentFrame, "Themes", true);
+        super(parentFrame, "Themes & info", true);
 
         // Initialize components
         themeComboBox = new JComboBox<>();
@@ -44,11 +44,11 @@ public class ThemeDialog extends JDialog {
 
         // Set the layout
         setLayout(new GridLayout(3, 1));
-        add(themeComboBox);
-        //add(fontSizeComboBox);
-        JTextField credits = new JTextField("Credits: www.formdev.com/flatlaf");
+        JTextField credits = new JTextField("Copyright (C) 2024 Emmanouil Krasanakis");
         credits.setEditable(false);
         add(credits);
+        add(themeComboBox);
+        //add(fontSizeComboBox);
         add(applyButton);
 
         applyButton.addActionListener(new ActionListener() {

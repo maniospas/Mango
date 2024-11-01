@@ -8,7 +8,7 @@ There are a lot of tools for code writing, and Mango here
 is what I would like the experience to feel like:
 common useful features at a fraction of the 
 complexity. As simple as eating a fruit! 
-:mango: Even first-time users can jump straight into coding 
+🥭 Even first-time users can jump straight into coding 
 and running things.
 
 Mango is kept simple by providing a small set of vital operations 

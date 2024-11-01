@@ -1,0 +1,6 @@
+!!Tasks
+tasks:
+  View:
+    command: '{cmd} {open} "{path}{file}.html"'
+    extensions: [.html]
+    highlighter: text/html
